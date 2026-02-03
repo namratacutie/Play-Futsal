@@ -1,5 +1,5 @@
-// 3D Football with Realistic Physics
-import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+// 3D Football with Realistic Physics - Proper Direction Control
+import { useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -10,119 +10,174 @@ const Ball = forwardRef(({ position, isShooter, onShoot, onGoal }, ref) => {
     const [currentPos, setCurrentPos] = useState({ x: 0, y: 0.3, z: 5 });
     const [rotation, setRotation] = useState({ x: 0, y: 0 });
     const [hasScored, setHasScored] = useState(false);
+    const [spin, setSpin] = useState({ x: 0, y: 0 });
 
-    // Reset position
+    // Reset ball to starting position
     const resetBall = () => {
         setCurrentPos({ x: 0, y: 0.3, z: 5 });
         setVelocity({ x: 0, y: 0, z: 0 });
         setIsAnimating(false);
         setHasScored(false);
+        setSpin({ x: 0, y: 0 });
     };
 
-    // Shoot function exposed via ref
+    // Shoot function with realistic physics
     const shoot = (direction, power) => {
         if (isAnimating) return;
 
         setIsAnimating(true);
         setHasScored(false);
 
-        // Calculate velocity based on direction and power
-        const speed = 0.3 + power * 0.4; // Base speed + power bonus
-        const lift = 0.08 + power * 0.12; // Ball arc
+        // REALISTIC PHYSICS CALCULATION
+        // direction: -1 (left) to 1 (right)
+        // power: 0 to 1
 
+        const baseSpeed = 0.4; // Base forward speed
+        const maxSpeedBonus = 0.5; // Additional speed from power
+        const forwardSpeed = baseSpeed + (power * maxSpeedBonus);
+
+        // Horizontal velocity based on direction
+        // Stronger direction = more sideways movement
+        const horizontalSpeed = direction * (0.25 + power * 0.15);
+
+        // Vertical velocity (lift) - more power = higher arc
+        const liftSpeed = 0.08 + (power * 0.15);
+
+        // Add some randomness for realism (slight inaccuracy)
+        const randomX = (Math.random() - 0.5) * 0.02;
+        const randomY = (Math.random() - 0.5) * 0.01;
+
+        // Set velocity
         setVelocity({
-            x: direction * speed * 0.5, // Side movement
-            y: lift, // Initial upward velocity
-            z: -speed // Forward velocity (towards goal)
+            x: horizontalSpeed + randomX,
+            y: liftSpeed + randomY,
+            z: -forwardSpeed // Negative = towards goal
         });
 
-        onShoot?.(direction, power);
+        // Add spin based on direction (curve ball effect)
+        setSpin({
+            x: forwardSpeed * 8, // Forward spin
+            y: direction * 3 // Side spin for curve
+        });
+
+        console.log(`Shot: direction=${direction.toFixed(2)}, power=${power.toFixed(2)}, velocity=`, {
+            x: horizontalSpeed.toFixed(3),
+            y: liftSpeed.toFixed(3),
+            z: (-forwardSpeed).toFixed(3)
+        });
     };
 
-    // Expose shoot function to parent
+    // Expose functions to parent
     useImperativeHandle(ref, () => ({
         shoot,
-        reset: resetBall
+        reset: resetBall,
+        getPosition: () => currentPos
     }));
 
-    // Ball animation loop
+    // Physics simulation loop
     useFrame((state, delta) => {
         if (!ballRef.current) return;
 
-        // Update ball mesh position
+        // Update mesh position
         ballRef.current.position.set(currentPos.x, currentPos.y, currentPos.z);
 
         if (!isAnimating) {
-            // Idle rotation
+            // Idle: gentle bobbing
+            const idleBob = Math.sin(state.clock.elapsedTime * 2) * 0.02;
+            ballRef.current.position.y = 0.3 + idleBob;
+
+            // Slow rotation
             setRotation(prev => ({
-                x: prev.x + delta * 0.5,
-                y: prev.y + delta * 0.3
+                x: prev.x + delta * 0.3,
+                y: prev.y + delta * 0.2
             }));
         } else {
-            // Apply physics
-            const gravity = 0.015;
-            const friction = 0.995;
-            const groundLevel = 0.3;
+            // ACTIVE PHYSICS SIMULATION
+            const gravity = 0.018; // Gravity acceleration
+            const airResistance = 0.997; // Air drag
+            const groundFriction = 0.85; // Ground friction
+            const bounciness = 0.55; // How bouncy the ball is
+            const groundLevel = 0.22; // Ball radius from ground
 
-            // Update velocity
-            const newVelocity = {
-                x: velocity.x * friction,
-                y: velocity.y - gravity, // Gravity
-                z: velocity.z * friction
+            // Apply gravity
+            let newVel = {
+                x: velocity.x * airResistance,
+                y: velocity.y - gravity,
+                z: velocity.z * airResistance
             };
 
-            // Update position
+            // Calculate new position
             let newPos = {
-                x: currentPos.x + newVelocity.x,
-                y: currentPos.y + newVelocity.y,
-                z: currentPos.z + newVelocity.z
+                x: currentPos.x + newVel.x,
+                y: currentPos.y + newVel.y,
+                z: currentPos.z + newVel.z
             };
 
-            // Ground bounce
+            // Ground collision
             if (newPos.y < groundLevel) {
                 newPos.y = groundLevel;
-                newVelocity.y = Math.abs(newVelocity.y) * 0.5; // Bounce with energy loss
+                newVel.y = Math.abs(newVel.y) * bounciness;
 
-                // Friction on ground
-                newVelocity.x *= 0.8;
-                newVelocity.z *= 0.8;
-            }
+                // Apply ground friction
+                newVel.x *= groundFriction;
+                newVel.z *= groundFriction;
 
-            // Ball spin during flight
-            setRotation(prev => ({
-                x: prev.x - delta * 15 * Math.abs(newVelocity.z),
-                y: prev.y + delta * 5 * newVelocity.x
-            }));
-
-            setVelocity(newVelocity);
-            setCurrentPos(newPos);
-
-            // Check for goal (goal line at z = -10, goal width = 4, height = 2)
-            if (newPos.z <= -10 && !hasScored) {
-                if (Math.abs(newPos.x) < 2 && newPos.y < 2.5 && newPos.y > 0) {
-                    // GOAL!
-                    setHasScored(true);
-                    onGoal?.();
-                    setTimeout(resetBall, 2000);
-                } else {
-                    // Miss - reset after a moment
-                    setTimeout(resetBall, 1500);
+                // Stop tiny bounces
+                if (Math.abs(newVel.y) < 0.02) {
+                    newVel.y = 0;
                 }
             }
 
-            // Ball went too far - reset
-            if (newPos.z < -15 || Math.abs(newPos.x) > 12) {
-                setTimeout(resetBall, 500);
+            // Side boundaries (field width ~10 on each side)
+            if (Math.abs(newPos.x) > 8) {
+                newPos.x = Math.sign(newPos.x) * 8;
+                newVel.x *= -0.5; // Bounce off side
             }
 
-            // Ball stopped moving - reset
-            const totalVelocity = Math.abs(newVelocity.x) + Math.abs(newVelocity.y) + Math.abs(newVelocity.z);
-            if (totalVelocity < 0.01 && newPos.z < 4) {
+            // Ball rotation (spin)
+            setRotation(prev => ({
+                x: prev.x - spin.x * delta,
+                y: prev.y + spin.y * delta
+            }));
+
+            // Update state
+            setVelocity(newVel);
+            setCurrentPos(newPos);
+
+            // GOAL DETECTION
+            // Goal is at z = -10, width = 4m (-2 to 2), height = 2.5m
+            if (newPos.z <= -10 && !hasScored) {
+                const inGoalWidth = Math.abs(newPos.x) < 2;
+                const inGoalHeight = newPos.y < 2.5 && newPos.y > 0;
+
+                if (inGoalWidth && inGoalHeight) {
+                    // GOAL!
+                    console.log('GOAL! Position:', newPos);
+                    setHasScored(true);
+                    onGoal?.();
+                    setTimeout(resetBall, 2500);
+                } else {
+                    // Miss!
+                    console.log('MISS! Position:', newPos);
+                    setTimeout(resetBall, 1500);
+                }
+                return;
+            }
+
+            // Ball went too far or stopped
+            if (newPos.z < -15 || newPos.z > 10) {
+                setTimeout(resetBall, 500);
+                return;
+            }
+
+            // Ball stopped moving
+            const totalSpeed = Math.sqrt(newVel.x ** 2 + newVel.y ** 2 + newVel.z ** 2);
+            if (totalSpeed < 0.005 && newPos.z < 4) {
                 setTimeout(resetBall, 1000);
             }
         }
 
-        // Apply rotation
+        // Apply rotation to mesh
         ballRef.current.rotation.x = rotation.x;
         ballRef.current.rotation.y = rotation.y;
     });
@@ -138,46 +193,62 @@ const Ball = forwardRef(({ position, isShooter, onShoot, onGoal }, ref) => {
                 <sphereGeometry args={[0.22, 32, 32]} />
                 <meshStandardMaterial
                     color="#ffffff"
-                    roughness={0.4}
+                    roughness={0.3}
                     metalness={0.1}
                 />
-                {/* Ball pattern */}
-                <mesh>
-                    <icosahedronGeometry args={[0.225, 0]} />
-                    <meshBasicMaterial color="#333333" wireframe />
-                </mesh>
             </mesh>
 
-            {/* Ball shadow */}
+            {/* Ball pentagon pattern */}
+            <mesh
+                position={[currentPos.x, currentPos.y, currentPos.z]}
+                rotation={[rotation.x, rotation.y, 0]}
+            >
+                <icosahedronGeometry args={[0.225, 0]} />
+                <meshBasicMaterial color="#1a1a1a" wireframe />
+            </mesh>
+
+            {/* Dynamic shadow */}
             <mesh
                 position={[currentPos.x, 0.01, currentPos.z]}
                 rotation={[-Math.PI / 2, 0, 0]}
             >
-                <circleGeometry args={[0.2 * (1 - currentPos.y * 0.1), 16]} />
-                <meshBasicMaterial color="#000000" transparent opacity={0.3 - currentPos.y * 0.05} />
+                <circleGeometry args={[0.25 * (1 / (1 + currentPos.y * 0.3)), 16]} />
+                <meshBasicMaterial
+                    color="#000000"
+                    transparent
+                    opacity={Math.max(0.1, 0.4 - currentPos.y * 0.1)}
+                />
             </mesh>
 
-            {/* Trail effect when moving fast */}
-            {isAnimating && Math.abs(velocity.z) > 0.1 && (
+            {/* Motion trail when moving fast */}
+            {isAnimating && Math.abs(velocity.z) > 0.15 && (
                 <group>
-                    {[1, 2, 3].map((i) => (
+                    {[1, 2, 3, 4].map((i) => (
                         <mesh
                             key={i}
                             position={[
-                                currentPos.x - velocity.x * i * 2,
-                                currentPos.y - velocity.y * i * 2,
-                                currentPos.z - velocity.z * i * 2
+                                currentPos.x - velocity.x * i * 1.5,
+                                currentPos.y - velocity.y * i * 1.5,
+                                currentPos.z - velocity.z * i * 1.5
                             ]}
                         >
-                            <sphereGeometry args={[0.15 - i * 0.03, 8, 8]} />
+                            <sphereGeometry args={[0.12 - i * 0.02, 8, 8]} />
                             <meshBasicMaterial
                                 color="#ff6b95"
                                 transparent
-                                opacity={0.4 - i * 0.1}
+                                opacity={0.5 - i * 0.1}
                             />
                         </mesh>
                     ))}
                 </group>
+            )}
+
+            {/* Impact effect when hitting ground */}
+            {isAnimating && currentPos.y < 0.3 && Math.abs(velocity.y) > 0.05 && (
+                <mesh position={[currentPos.x, 0.02, currentPos.z]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[0.1, 0.4, 16]} />
+                    <meshBasicMaterial color="#ffffff" transparent opacity={0.3} />
+                </mesh>
             )}
         </group>
     );

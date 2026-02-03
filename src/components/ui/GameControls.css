@@ -1,124 +1,56 @@
-/* Game Controls Styles */
+/* Game Controls Styles - Drag to Aim */
 
 .game-controls {
     position: fixed;
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    width: 350px;
-    padding: 25px;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    gap: 15px;
+}
+
+/* Aim Area */
+.aim-area {
+    width: 300px;
+    height: 180px;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    z-index: 100;
-}
-
-.control-label {
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 0.9rem;
-    margin-bottom: 10px;
-    text-align: center;
-}
-
-/* Direction Control */
-.direction-control {
-    margin-bottom: 20px;
-}
-
-.direction-slider {
-    position: relative;
-    height: 50px;
-    background: rgba(255, 255, 255, 0.05);
     border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    cursor: pointer;
-    overflow: hidden;
-}
-
-.goal-indicator {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 20px;
-    transform: translateY(-50%);
-    pointer-events: none;
-}
-
-.post {
-    color: #fff;
-    font-size: 2rem;
-    font-weight: 300;
-    opacity: 0.5;
-}
-
-.direction-marker {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.5rem;
-    transition: left 0.1s ease;
-    filter: drop-shadow(0 0 10px #ff6b95);
-}
-
-.direction-labels {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 5px;
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.4);
-}
-
-/* Power Control */
-.power-control {
-    margin-bottom: 20px;
-}
-
-.power-bar {
-    height: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.power-fill {
-    height: 100%;
-    border-radius: 6px;
-    transition: width 0.05s linear, background 0.2s ease;
-    box-shadow: 0 0 15px currentColor;
-}
-
-/* Shoot Button */
-.shoot-btn {
-    width: 100%;
-    padding: 18px;
-    background: linear-gradient(90deg, #ff6b95, #ff4757);
-    border: none;
-    border-radius: 14px;
-    color: #fff;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(255, 71, 87, 0.4);
 }
 
-.shoot-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 30px rgba(255, 71, 87, 0.5);
+.aim-area:hover {
+    border-color: rgba(255, 107, 149, 0.4);
+    box-shadow: 0 0 30px rgba(255, 107, 149, 0.2);
 }
 
-.shoot-btn.charging {
-    animation: pulse 0.3s ease infinite;
-    background: linear-gradient(90deg, #2ecc71, #27ae60);
-    box-shadow: 0 4px 20px rgba(46, 204, 113, 0.4);
+.aim-area.aiming {
+    cursor: grabbing;
+    border-color: #ff6b95;
+    background: rgba(255, 107, 149, 0.1);
+    box-shadow: 0 0 40px rgba(255, 107, 149, 0.3);
+}
+
+/* Aim Prompt */
+.aim-prompt {
+    text-align: center;
+    color: #fff;
+}
+
+.aim-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 10px;
+    animation: pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse {
@@ -129,26 +61,171 @@
     }
 
     50% {
-        transform: scale(1.02);
+        transform: scale(1.1);
     }
 }
 
-.shoot-icon {
-    font-size: 1.3rem;
+.aim-prompt p {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
-.controls-hint {
-    text-align: center;
-    color: rgba(255, 255, 255, 0.4);
+.aim-hint {
+    display: block;
     font-size: 0.8rem;
-    margin-top: 12px;
-    margin-bottom: 0;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 2px 0;
+}
+
+/* Aiming Display */
+.aiming-display {
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+}
+
+.aim-crosshair {
+    width: 150px;
+    height: 100px;
+    position: relative;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.crosshair-dot {
+    font-size: 2rem;
+    transition: transform 0.1s ease-out;
+    filter: drop-shadow(0 0 10px #ff6b95);
+}
+
+.aim-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.direction-label,
+.power-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.direction-label {
+    color: #6495ed;
+}
+
+.release-hint {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: #2ecc71;
+    animation: blink 0.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Power Indicator (Vertical) */
+.power-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.power-bar-vertical {
+    width: 30px;
+    height: 150px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column-reverse;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.power-fill-vertical {
+    width: 100%;
+    border-radius: 13px;
+    transition: height 0.1s ease-out, background-color 0.2s ease;
+    box-shadow: 0 0 15px currentColor;
+}
+
+.power-emoji {
+    font-size: 1.5rem;
+}
+
+/* Direction Indicator */
+.direction-indicator {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 15px;
+}
+
+.goal-preview {
+    width: 200px;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.post {
+    width: 8px;
+    height: 50px;
+    background: #fff;
+    border-radius: 4px;
+}
+
+.ball-marker {
+    position: absolute;
+    bottom: 10px;
+    transform: translateX(-50%);
+    font-size: 1.2rem;
+    transition: left 0.1s ease-out;
+    filter: drop-shadow(0 0 8px #ff6b95);
 }
 
 /* Responsive */
 @media (max-width: 480px) {
-    .game-controls {
-        width: 90%;
-        padding: 20px;
+    .aim-area {
+        width: 260px;
+        height: 150px;
+    }
+
+    .aim-icon {
+        font-size: 2.5rem;
+    }
+
+    .aim-prompt p {
+        font-size: 1rem;
+    }
+
+    .power-bar-vertical {
+        height: 120px;
     }
 }

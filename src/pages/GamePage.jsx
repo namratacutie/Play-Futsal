@@ -1,62 +1,48 @@
-// Main Game Page with 3D Canvas and Dynamic Camera
-import { Suspense, useEffect, useState, useRef } from 'react';
+// Main Game Page with 3D Canvas, Dynamic Camera & Trajectory Preview
+import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
 import { useGameState } from '../hooks/useGameState';
 import FutsalField from '../components/3d/FutsalField';
 import Ball from '../components/3d/Ball';
 import Character from '../components/3d/Character';
+import TrajectoryPath from '../components/3d/TrajectoryPath';
 import ScoreBoard from '../components/ui/ScoreBoard';
 import QuestionModal from '../components/ui/QuestionModal';
 import GameControls from '../components/ui/GameControls';
 import './GamePage.css';
 
 // Dynamic Camera that follows the action
-const DynamicCamera = ({ ballPosition, isFollowing }) => {
+const DynamicCamera = ({ isFollowing, targetZ }) => {
     const { camera } = useThree();
-    const targetPos = useRef({ x: 0, y: 8, z: 15 });
-    const targetLook = useRef({ x: 0, y: 0, z: 0 });
+    const targetPos = useRef({ x: 0, y: 5, z: 12 });
 
     useFrame((state, delta) => {
-        if (isFollowing && ballPosition) {
-            // Follow ball during shot
+        if (isFollowing) {
+            // Follow shot - move camera forward and slightly up
             targetPos.current = {
-                x: ballPosition.x * 0.3,
-                y: 4 + Math.max(0, ballPosition.y * 0.5),
-                z: ballPosition.z + 8
-            };
-            targetLook.current = {
-                x: ballPosition.x,
-                y: ballPosition.y,
-                z: ballPosition.z - 3
+                x: 0,
+                y: 6,
+                z: Math.max(0, targetZ + 10)
             };
         } else {
             // Default penalty kick view (behind the player)
             targetPos.current = { x: 0, y: 5, z: 12 };
-            targetLook.current = { x: 0, y: 1, z: -5 };
         }
 
         // Smooth camera movement
-        camera.position.x += (targetPos.current.x - camera.position.x) * delta * 3;
-        camera.position.y += (targetPos.current.y - camera.position.y) * delta * 3;
-        camera.position.z += (targetPos.current.z - camera.position.z) * delta * 3;
+        camera.position.x += (targetPos.current.x - camera.position.x) * delta * 2;
+        camera.position.y += (targetPos.current.y - camera.position.y) * delta * 2;
+        camera.position.z += (targetPos.current.z - camera.position.z) * delta * 2;
 
-        // Smooth look at
-        const currentLook = camera.getWorldDirection(new THREE.Vector3());
-        camera.lookAt(
-            targetLook.current.x,
-            targetLook.current.y,
-            targetLook.current.z
-        );
+        // Always look at goal area
+        camera.lookAt(0, 1, -5);
     });
 
     return null;
 };
-
-// Need THREE import for Vector3
-import * as THREE from 'three';
 
 const GamePage = () => {
     const navigate = useNavigate();
@@ -64,8 +50,15 @@ const GamePage = () => {
     const { gameState, otherPlayerOnline, shootBall, recordGoal, answerQuestion } = useGameState();
     const ballRef = useRef();
     const [showGoalCelebration, setShowGoalCelebration] = useState(false);
-    const [ballPosition, setBallPosition] = useState({ x: 0, y: 0.3, z: 5 });
     const [isFollowingBall, setIsFollowingBall] = useState(false);
+    const [ballZ, setBallZ] = useState(5);
+
+    // Aiming state for trajectory preview
+    const [aimState, setAimState] = useState({
+        direction: 0,
+        power: 0.5,
+        isAiming: false
+    });
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -73,6 +66,11 @@ const GamePage = () => {
             navigate('/');
         }
     }, [isAuthenticated, loading, navigate]);
+
+    // Handle aim changes from controls
+    const handleAimChange = useCallback((newAimState) => {
+        setAimState(newAimState);
+    }, []);
 
     if (loading) {
         return (
@@ -104,6 +102,7 @@ const GamePage = () => {
         // Stop following after shot completes
         setTimeout(() => {
             setIsFollowingBall(false);
+            setBallZ(5);
         }, 3000);
     };
 
@@ -170,8 +169,8 @@ const GamePage = () => {
                     <Suspense fallback={null}>
                         {/* Dynamic Camera */}
                         <DynamicCamera
-                            ballPosition={ballPosition}
                             isFollowing={isFollowingBall}
+                            targetZ={ballZ}
                         />
 
                         {/* Lighting */}
@@ -188,10 +187,18 @@ const GamePage = () => {
 
                         {/* Sky color */}
                         <color attach="background" args={['#1a0a2e']} />
-                        <fog attach="fog" args={['#1a0a2e', 20, 50]} />
+                        <fog attach="fog" args={['#1a0a2e', 25, 50]} />
 
                         {/* Field */}
                         <FutsalField />
+
+                        {/* Trajectory Path - shows when aiming */}
+                        <TrajectoryPath
+                            direction={aimState.direction}
+                            power={aimState.power}
+                            visible={aimState.isAiming}
+                            startPosition={[0, 0.3, 5]}
+                        />
 
                         {/* Ball */}
                         <Ball
@@ -223,8 +230,11 @@ const GamePage = () => {
                 </Canvas>
             </div>
 
-            {/* Game Controls */}
-            <GameControls onShoot={handleShoot} />
+            {/* Game Controls with Aim Callback */}
+            <GameControls
+                onShoot={handleShoot}
+                onAimChange={handleAimChange}
+            />
 
             {/* Question Modal */}
             {gameState.questionActive && (

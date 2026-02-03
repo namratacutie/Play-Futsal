@@ -1,130 +1,164 @@
-// Game Controls - Shoot direction and power
-import { useState, useCallback } from 'react';
+// Game Controls - Drag to Aim with Trajectory Preview
+import { useState, useCallback, useRef, useEffect } from 'react';
 import './GameControls.css';
 
-const GameControls = ({ onShoot }) => {
-    const [direction, setDirection] = useState(0); // -1 to 1
-    const [power, setPower] = useState(50);
-    const [isCharging, setIsCharging] = useState(false);
-    const [chargeDirection, setChargeDirection] = useState(1);
+const GameControls = ({ onShoot, onAimChange }) => {
+    const [isAiming, setIsAiming] = useState(false);
+    const [direction, setDirection] = useState(0);
+    const [power, setPower] = useState(0.5);
+    const [touchStart, setTouchStart] = useState(null);
+    const aimAreaRef = useRef(null);
 
-    // Power charge animation
-    const startCharging = useCallback(() => {
-        setIsCharging(true);
+    // Notify parent of aim changes for trajectory preview
+    useEffect(() => {
+        onAimChange?.({ direction, power, isAiming });
+    }, [direction, power, isAiming, onAimChange]);
 
-        const interval = setInterval(() => {
-            setPower(prev => {
-                let newPower;
-                if (chargeDirection === 1) {
-                    newPower = prev + 2;
-                    if (newPower >= 100) {
-                        setChargeDirection(-1);
-                        return 100;
-                    }
-                } else {
-                    newPower = prev - 2;
-                    if (newPower <= 20) {
-                        setChargeDirection(1);
-                        return 20;
-                    }
-                }
-                return newPower;
-            });
-        }, 30);
+    const handlePointerDown = (e) => {
+        e.preventDefault();
+        const rect = aimAreaRef.current?.getBoundingClientRect();
+        if (!rect) return;
 
-        return () => clearInterval(interval);
-    }, [chargeDirection]);
+        const clientX = e.clientX || e.touches?.[0]?.clientX;
+        const clientY = e.clientY || e.touches?.[0]?.clientY;
 
-    const handleShoot = () => {
-        if (isCharging) {
-            setIsCharging(false);
-            onShoot?.(direction, power / 100);
-            // Reset
+        setTouchStart({ x: clientX, y: clientY, rect });
+        setIsAiming(true);
+    };
+
+    const handlePointerMove = useCallback((e) => {
+        if (!isAiming || !touchStart) return;
+
+        const clientX = e.clientX || e.touches?.[0]?.clientX;
+        const clientY = e.clientY || e.touches?.[0]?.clientY;
+
+        // Calculate direction based on horizontal drag
+        const deltaX = clientX - touchStart.x;
+        const newDirection = Math.max(-1, Math.min(1, deltaX / 100));
+        setDirection(newDirection);
+
+        // Calculate power based on vertical drag (drag up = more power)
+        const deltaY = touchStart.y - clientY;
+        const newPower = Math.max(0.2, Math.min(1, 0.5 + deltaY / 150));
+        setPower(newPower);
+    }, [isAiming, touchStart]);
+
+    const handlePointerUp = () => {
+        if (isAiming) {
+            // Shoot!
+            onShoot?.(direction, power);
+
+            // Reset after shooting
             setTimeout(() => {
-                setPower(50);
+                setIsAiming(false);
                 setDirection(0);
-            }, 500);
-        } else {
-            startCharging();
+                setPower(0.5);
+                setTouchStart(null);
+            }, 100);
         }
     };
 
-    const handleDirectionChange = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const normalized = (x / rect.width) * 2 - 1;
-        setDirection(Math.max(-1, Math.min(1, normalized)));
+    // Global event listeners for drag
+    useEffect(() => {
+        if (isAiming) {
+            window.addEventListener('mousemove', handlePointerMove);
+            window.addEventListener('mouseup', handlePointerUp);
+            window.addEventListener('touchmove', handlePointerMove);
+            window.addEventListener('touchend', handlePointerUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handlePointerMove);
+            window.removeEventListener('mouseup', handlePointerUp);
+            window.removeEventListener('touchmove', handlePointerMove);
+            window.removeEventListener('touchend', handlePointerUp);
+        };
+    }, [isAiming, handlePointerMove]);
+
+    const getPowerColor = () => {
+        if (power < 0.4) return '#2ecc71';
+        if (power < 0.7) return '#f1c40f';
+        return '#ff6b95';
     };
 
-    const getPowerEmoji = () => {
-        if (power < 40) return '💕';
-        if (power < 70) return '⚽';
-        return '🔥';
+    const getDirectionLabel = () => {
+        if (direction < -0.3) return '← Left';
+        if (direction > 0.3) return 'Right →';
+        return 'Center';
     };
 
     return (
         <div className="game-controls">
-            {/* Direction Control */}
-            <div className="direction-control">
-                <p className="control-label">🎯 Aim Direction</p>
-                <div
-                    className="direction-slider"
-                    onClick={handleDirectionChange}
-                    onMouseMove={(e) => e.buttons === 1 && handleDirectionChange(e)}
-                >
-                    <div className="goal-indicator">
-                        <span className="post left">|</span>
-                        <span className="post right">|</span>
-                    </div>
-                    <div
-                        className="direction-marker"
-                        style={{ left: `${(direction + 1) * 50}%` }}
-                    >
-                        ⚽
-                    </div>
-                </div>
-                <div className="direction-labels">
-                    <span>← Left</span>
-                    <span>Center</span>
-                    <span>Right →</span>
-                </div>
-            </div>
-
-            {/* Power Indicator */}
-            <div className="power-control">
-                <p className="control-label">{getPowerEmoji()} Power: {power}%</p>
-                <div className="power-bar">
-                    <div
-                        className="power-fill"
-                        style={{
-                            width: `${power}%`,
-                            background: power < 40 ? '#2ecc71' : power < 70 ? '#f1c40f' : '#ff6b95'
-                        }}
-                    />
-                </div>
-            </div>
-
-            {/* Shoot Button */}
-            <button
-                className={`shoot-btn ${isCharging ? 'charging' : ''}`}
-                onClick={handleShoot}
+            {/* Aim Area */}
+            <div
+                ref={aimAreaRef}
+                className={`aim-area ${isAiming ? 'aiming' : ''}`}
+                onMouseDown={handlePointerDown}
+                onTouchStart={handlePointerDown}
             >
-                {isCharging ? (
-                    <>
-                        <span className="shoot-icon">🎯</span>
-                        <span>RELEASE TO SHOOT!</span>
-                    </>
+                {!isAiming ? (
+                    <div className="aim-prompt">
+                        <span className="aim-icon">🎯</span>
+                        <p>Drag to Aim & Shoot!</p>
+                        <span className="aim-hint">↔️ Drag left/right to aim</span>
+                        <span className="aim-hint">↕️ Drag up for more power</span>
+                    </div>
                 ) : (
-                    <>
-                        <span className="shoot-icon">⚽</span>
-                        <span>HOLD TO CHARGE</span>
-                    </>
+                    <div className="aiming-display">
+                        <div className="aim-crosshair">
+                            <div
+                                className="crosshair-dot"
+                                style={{
+                                    transform: `translate(${direction * 60}px, ${-(power - 0.5) * 80}px)`
+                                }}
+                            >
+                                ⚽
+                            </div>
+                        </div>
+                        <div className="aim-stats">
+                            <span className="direction-label">{getDirectionLabel()}</span>
+                            <span className="power-label" style={{ color: getPowerColor() }}>
+                                Power: {Math.round(power * 100)}%
+                            </span>
+                        </div>
+                        <p className="release-hint">Release to SHOOT! 🚀</p>
+                    </div>
                 )}
-            </button>
+            </div>
 
-            <p className="controls-hint">
-                Click to start charging, click again to shoot! 💕
-            </p>
+            {/* Power Bar (always visible when aiming) */}
+            {isAiming && (
+                <div className="power-indicator">
+                    <div className="power-bar-vertical">
+                        <div
+                            className="power-fill-vertical"
+                            style={{
+                                height: `${power * 100}%`,
+                                backgroundColor: getPowerColor()
+                            }}
+                        />
+                    </div>
+                    <span className="power-emoji">
+                        {power < 0.4 ? '💕' : power < 0.7 ? '⚽' : '🔥'}
+                    </span>
+                </div>
+            )}
+
+            {/* Direction Indicator */}
+            {isAiming && (
+                <div className="direction-indicator">
+                    <div className="goal-preview">
+                        <div className="post left"></div>
+                        <div
+                            className="ball-marker"
+                            style={{ left: `${50 + direction * 40}%` }}
+                        >
+                            ⚽
+                        </div>
+                        <div className="post right"></div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
