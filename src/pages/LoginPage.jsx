@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import nammuImg from '../assets/nammu.jpeg';
 import './LoginPage.css';
 
 const LoginPage = () => {
@@ -95,7 +96,9 @@ const LoginPage = () => {
             {/* Main card */}
             <div className="login-card">
                 <div className="logo-section">
-                    <span className="ball-emoji">⚽</span>
+                    <div className="login-image-wrapper">
+                        <img src={nammuImg} alt="Game Logo" className="login-main-image" />
+                    </div>
                     <h1 className="title">
                         <span className="title-play">Play</span>
                         <span className="title-futsal">Futsal</span>

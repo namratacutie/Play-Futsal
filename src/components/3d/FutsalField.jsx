@@ -122,26 +122,26 @@ const PenaltyArea = ({ position }) => (
     </group>
 );
 
-// Goal Component
+// Goal Component (3m x 2m)
 const Goal = ({ position, rotation = [0, 0, 0] }) => (
     <group position={position} rotation={rotation}>
         {/* Goal posts */}
-        <mesh position={[-2, 1, 0]} castShadow>
+        <mesh position={[-1.5, 1, 0]} castShadow>
             <cylinderGeometry args={[0.1, 0.1, 2, 16]} />
             <meshStandardMaterial color="#ffffff" metalness={0.8} roughness={0.2} />
         </mesh>
-        <mesh position={[2, 1, 0]} castShadow>
+        <mesh position={[1.5, 1, 0]} castShadow>
             <cylinderGeometry args={[0.1, 0.1, 2, 16]} />
             <meshStandardMaterial color="#ffffff" metalness={0.8} roughness={0.2} />
         </mesh>
         {/* Crossbar */}
         <mesh position={[0, 2, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[0.1, 0.1, 4, 16]} />
+            <cylinderGeometry args={[0.1, 0.1, 3.2, 16]} />
             <meshStandardMaterial color="#ffffff" metalness={0.8} roughness={0.2} />
         </mesh>
         {/* Net (simplified) */}
         <mesh position={[0, 1, -0.5]}>
-            <boxGeometry args={[4, 2, 1]} />
+            <boxGeometry args={[3, 2, 1]} />
             <meshStandardMaterial color="#ffffff" transparent opacity={0.2} wireframe />
         </mesh>
     </group>

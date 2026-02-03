@@ -1,4 +1,4 @@
-// Game Controls - Drag to Aim with Trajectory Preview
+// Game Controls - Drag to Aim (Fixed Stale State Bug)
 import { useState, useCallback, useRef, useEffect } from 'react';
 import './GameControls.css';
 
@@ -6,64 +6,90 @@ const GameControls = ({ onShoot, onAimChange }) => {
     const [isAiming, setIsAiming] = useState(false);
     const [direction, setDirection] = useState(0);
     const [power, setPower] = useState(0.5);
-    const [touchStart, setTouchStart] = useState(null);
+
+    // Refs to hold latest values for event listeners (Fixes Stale Closure)
+    const directionRef = useRef(0);
+    const powerRef = useRef(0.5);
+    const touchStartRef = useRef(null);
     const aimAreaRef = useRef(null);
 
-    // Notify parent of aim changes for trajectory preview
+    // Notify parent of aim changes
     useEffect(() => {
         onAimChange?.({ direction, power, isAiming });
     }, [direction, power, isAiming, onAimChange]);
 
     const handlePointerDown = (e) => {
-        e.preventDefault();
+        // Only prevent default on mouse, not touch (passive listener issue)
+        if (e.type === 'mousedown') {
+            e.preventDefault();
+        }
+
         const rect = aimAreaRef.current?.getBoundingClientRect();
         if (!rect) return;
 
         const clientX = e.clientX || e.touches?.[0]?.clientX;
         const clientY = e.clientY || e.touches?.[0]?.clientY;
 
-        setTouchStart({ x: clientX, y: clientY, rect });
+        touchStartRef.current = { x: clientX, y: clientY };
+
         setIsAiming(true);
+        // Do not reset direction/power here, allow picking up where left off or start center
+        setDirection(0);
+        setPower(0.5);
+        directionRef.current = 0;
+        powerRef.current = 0.5;
     };
 
     const handlePointerMove = useCallback((e) => {
-        if (!isAiming || !touchStart) return;
+        if (!isAiming || !touchStartRef.current) return;
 
         const clientX = e.clientX || e.touches?.[0]?.clientX;
         const clientY = e.clientY || e.touches?.[0]?.clientY;
 
+        if (clientX === undefined || clientY === undefined) return;
+
         // Calculate direction based on horizontal drag
-        const deltaX = clientX - touchStart.x;
-        const newDirection = Math.max(-1, Math.min(1, deltaX / 100));
+        const deltaX = clientX - touchStartRef.current.x;
+        // Sensitivity: 150px drag = full direction (1.0)
+        const newDirection = Math.max(-1, Math.min(1, deltaX / 150));
+
         setDirection(newDirection);
+        directionRef.current = newDirection;
 
         // Calculate power based on vertical drag (drag up = more power)
-        const deltaY = touchStart.y - clientY;
-        const newPower = Math.max(0.2, Math.min(1, 0.5 + deltaY / 150));
+        const deltaY = touchStartRef.current.y - clientY;
+        // Sensitivity: 200px drag = full power bonus
+        const newPower = Math.max(0.2, Math.min(1, 0.5 + deltaY / 200));
+
         setPower(newPower);
-    }, [isAiming, touchStart]);
+        powerRef.current = newPower;
+    }, [isAiming]);
 
-    const handlePointerUp = () => {
+    const handlePointerUp = useCallback(() => {
         if (isAiming) {
-            // Shoot!
-            onShoot?.(direction, power);
+            // Use REF values to ensure we get the latest state
+            const finalDirection = directionRef.current;
+            const finalPower = powerRef.current;
 
-            // Reset after shooting
-            setTimeout(() => {
-                setIsAiming(false);
-                setDirection(0);
-                setPower(0.5);
-                setTouchStart(null);
-            }, 100);
+            console.log(`Releasing shot: dir=${finalDirection.toFixed(2)}, power=${finalPower.toFixed(2)}`);
+            onShoot?.(finalDirection, finalPower);
+
+            // Reset
+            setIsAiming(false);
+            setDirection(0);
+            setPower(0.5);
+            directionRef.current = 0;
+            powerRef.current = 0.5;
+            touchStartRef.current = null;
         }
-    };
+    }, [isAiming, onShoot]);
 
-    // Global event listeners for drag
+    // Global event listeners
     useEffect(() => {
         if (isAiming) {
             window.addEventListener('mousemove', handlePointerMove);
             window.addEventListener('mouseup', handlePointerUp);
-            window.addEventListener('touchmove', handlePointerMove);
+            window.addEventListener('touchmove', handlePointerMove, { passive: false });
             window.addEventListener('touchend', handlePointerUp);
         }
 
@@ -73,7 +99,7 @@ const GameControls = ({ onShoot, onAimChange }) => {
             window.removeEventListener('touchmove', handlePointerMove);
             window.removeEventListener('touchend', handlePointerUp);
         };
-    }, [isAiming, handlePointerMove]);
+    }, [isAiming, handlePointerMove, handlePointerUp]);
 
     const getPowerColor = () => {
         if (power < 0.4) return '#2ecc71';
@@ -105,28 +131,20 @@ const GameControls = ({ onShoot, onAimChange }) => {
                     </div>
                 ) : (
                     <div className="aiming-display">
-                        <div className="aim-crosshair">
-                            <div
-                                className="crosshair-dot"
-                                style={{
-                                    transform: `translate(${direction * 60}px, ${-(power - 0.5) * 80}px)`
-                                }}
-                            >
-                                ⚽
+                        <div className="aiming-overlay">
+                            {/* Visual crosshair following touch */}
+                            <div className="aim-stats">
+                                <span className="direction-label">{getDirectionLabel()}</span>
+                                <span className="power-label" style={{ color: getPowerColor() }}>
+                                    {Math.round(power * 100)}%
+                                </span>
                             </div>
                         </div>
-                        <div className="aim-stats">
-                            <span className="direction-label">{getDirectionLabel()}</span>
-                            <span className="power-label" style={{ color: getPowerColor() }}>
-                                Power: {Math.round(power * 100)}%
-                            </span>
-                        </div>
-                        <p className="release-hint">Release to SHOOT! 🚀</p>
                     </div>
                 )}
             </div>
 
-            {/* Power Bar (always visible when aiming) */}
+            {/* Power Bar (vertical) */}
             {isAiming && (
                 <div className="power-indicator">
                     <div className="power-bar-vertical">
@@ -141,22 +159,6 @@ const GameControls = ({ onShoot, onAimChange }) => {
                     <span className="power-emoji">
                         {power < 0.4 ? '💕' : power < 0.7 ? '⚽' : '🔥'}
                     </span>
-                </div>
-            )}
-
-            {/* Direction Indicator */}
-            {isAiming && (
-                <div className="direction-indicator">
-                    <div className="goal-preview">
-                        <div className="post left"></div>
-                        <div
-                            className="ball-marker"
-                            style={{ left: `${50 + direction * 40}%` }}
-                        >
-                            ⚽
-                        </div>
-                        <div className="post right"></div>
-                    </div>
                 </div>
             )}
         </div>

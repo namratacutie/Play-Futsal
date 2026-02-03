@@ -98,7 +98,8 @@ const TrajectoryPath = ({ direction, power, visible, startPosition = [0, 0.3, 5]
     const curvePoints = curve.getPoints(80);
 
     // Check if shot will be a goal
-    const isGoal = Math.abs(endPoint.x) < 2 && endPoint.y < 2.5 && endPoint.y > 0;
+    // Check if shot will be a goal (strict: width 3m, height 2m)
+    const isGoal = Math.abs(endPoint.x) <= 1.5 && endPoint.y <= 2 && endPoint.y >= 0;
 
     return (
         <group>
@@ -172,10 +173,10 @@ const TrajectoryPath = ({ direction, power, visible, startPosition = [0, 0.3, 5]
             </group>
 
             {/* Goal frame highlight */}
-            <group position={[0, 1.25, -10]}>
+            <group position={[0, 1, -10]}>
                 {/* Left post */}
-                <mesh position={[-2, 0, 0]}>
-                    <boxGeometry args={[0.15, 2.5, 0.15]} />
+                <mesh position={[-1.5, 0, 0]}>
+                    <boxGeometry args={[0.15, 2, 0.15]} />
                     <meshBasicMaterial
                         color={direction < -0.3 ? "#2ecc71" : "#ffffff"}
                         transparent
@@ -183,8 +184,8 @@ const TrajectoryPath = ({ direction, power, visible, startPosition = [0, 0.3, 5]
                     />
                 </mesh>
                 {/* Right post */}
-                <mesh position={[2, 0, 0]}>
-                    <boxGeometry args={[0.15, 2.5, 0.15]} />
+                <mesh position={[1.5, 0, 0]}>
+                    <boxGeometry args={[0.15, 2, 0.15]} />
                     <meshBasicMaterial
                         color={direction > 0.3 ? "#2ecc71" : "#ffffff"}
                         transparent
@@ -192,8 +193,8 @@ const TrajectoryPath = ({ direction, power, visible, startPosition = [0, 0.3, 5]
                     />
                 </mesh>
                 {/* Crossbar */}
-                <mesh position={[0, 1.25, 0]}>
-                    <boxGeometry args={[4, 0.15, 0.15]} />
+                <mesh position={[0, 1, 0]}>
+                    <boxGeometry args={[3.15, 0.15, 0.15]} />
                     <meshBasicMaterial
                         color={power > 0.7 ? "#f1c40f" : "#ffffff"}
                         transparent
