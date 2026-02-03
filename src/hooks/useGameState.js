@@ -7,8 +7,8 @@ import { useAuth } from '../context/AuthContext';
 export const useGameState = () => {
     const { playerInfo } = useAuth();
     const [gameState, setGameState] = useState({
-        suprem: { online: false, score: 0, isReady: false },
-        nammu: { online: false, score: 0, isReady: false },
+        suprem: { online: false, score: 0, lovePoints: 0, isReady: false },
+        nammu: { online: false, score: 0, lovePoints: 0, isReady: false },
         currentShooter: null,
         ballPosition: { x: 0, y: 0, z: 5 },
         goalKeeperPosition: { x: 0, y: 0 },
@@ -108,13 +108,21 @@ export const useGameState = () => {
         await update(gameRef, updates);
     }, [gameState]);
 
-    // Answer question
+    // Answer question & Update Love Points
     const answerQuestion = useCallback(async (answer, points) => {
         const gameRef = ref(database, 'game');
+
+        // Update love points for the answering player
         const updates = {
             questionActive: false,
             currentQuestion: null
         };
+
+        if (playerInfo?.name === 'Suprem') {
+            updates['suprem/lovePoints'] = (gameState.suprem?.lovePoints || 0) + points;
+        } else if (playerInfo?.name === 'Nammu') {
+            updates['nammu/lovePoints'] = (gameState.nammu?.lovePoints || 0) + points;
+        }
 
         await update(gameRef, updates);
 
@@ -126,7 +134,7 @@ export const useGameState = () => {
             points,
             timestamp: serverTimestamp()
         });
-    }, [playerInfo]);
+    }, [playerInfo, gameState]);
 
     // Set current shooter
     const setShooter = useCallback(async (shooterName) => {
@@ -149,8 +157,8 @@ export const useGameState = () => {
     const resetGame = useCallback(async () => {
         const gameRef = ref(database, 'game');
         await set(gameRef, {
-            suprem: { score: 0, isReady: false },
-            nammu: { score: 0, isReady: false },
+            suprem: { score: 0, lovePoints: 0, isReady: false },
+            nammu: { score: 0, lovePoints: 0, isReady: false },
             currentShooter: null,
             ballPosition: { x: 0, y: 0, z: 5 },
             goalKeeperPosition: { x: 0, y: 0 },

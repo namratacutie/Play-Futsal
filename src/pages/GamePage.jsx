@@ -209,9 +209,12 @@ const GamePage = () => {
             </header>
 
             {/* Score Board */}
+            {/* Score Board */}
             <ScoreBoard
                 supremScore={gameState.suprem?.score || 0}
                 nammuScore={gameState.nammu?.score || 0}
+                supremLovePoints={gameState.suprem?.lovePoints || 0}
+                nammuLovePoints={gameState.nammu?.lovePoints || 0}
                 currentPlayer={playerInfo.name}
             />
 
