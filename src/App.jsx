@@ -27,7 +27,7 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/futsal">
       <AuthProvider>
         <Routes>
           <Route path="/" element={<LoginPage />} />
