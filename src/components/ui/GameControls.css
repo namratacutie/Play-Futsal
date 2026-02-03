@@ -1,0 +1,154 @@
+/* Game Controls Styles */
+
+.game-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 350px;
+    padding: 25px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    z-index: 100;
+}
+
+.control-label {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+/* Direction Control */
+.direction-control {
+    margin-bottom: 20px;
+}
+
+.direction-slider {
+    position: relative;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.goal-indicator {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.post {
+    color: #fff;
+    font-size: 2rem;
+    font-weight: 300;
+    opacity: 0.5;
+}
+
+.direction-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    transition: left 0.1s ease;
+    filter: drop-shadow(0 0 10px #ff6b95);
+}
+
+.direction-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* Power Control */
+.power-control {
+    margin-bottom: 20px;
+}
+
+.power-bar {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.power-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.05s linear, background 0.2s ease;
+    box-shadow: 0 0 15px currentColor;
+}
+
+/* Shoot Button */
+.shoot-btn {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(90deg, #ff6b95, #ff4757);
+    border: none;
+    border-radius: 14px;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(255, 71, 87, 0.4);
+}
+
+.shoot-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 30px rgba(255, 71, 87, 0.5);
+}
+
+.shoot-btn.charging {
+    animation: pulse 0.3s ease infinite;
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+    box-shadow: 0 4px 20px rgba(46, 204, 113, 0.4);
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+.shoot-icon {
+    font-size: 1.3rem;
+}
+
+.controls-hint {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    margin-top: 12px;
+    margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .game-controls {
+        width: 90%;
+        padding: 20px;
+    }
+}

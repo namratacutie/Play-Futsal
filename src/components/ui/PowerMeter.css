@@ -1,0 +1,76 @@
+/* Power Meter Styles */
+
+.power-meter {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    padding: 15px 20px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    z-index: 100;
+}
+
+.power-label {
+    text-align: center;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.power-bar-container {
+    position: relative;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.power-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.05s linear, background-color 0.2s ease;
+    box-shadow: 0 0 20px currentColor;
+}
+
+.power-hearts {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.heart-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.7rem;
+    opacity: 0.3;
+    transition: all 0.2s ease;
+}
+
+.heart-marker.active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.2);
+}
+
+.power-value {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8rem;
+    margin-top: 8px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .power-meter {
+        width: 250px;
+        padding: 12px 15px;
+    }
+}
