@@ -1,5 +1,5 @@
 // Main Game Page with 3D Canvas
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +8,6 @@ import FutsalField from '../components/3d/FutsalField';
 import Ball from '../components/3d/Ball';
 import Character from '../components/3d/Character';
 import ScoreBoard from '../components/ui/ScoreBoard';
-import PowerMeter from '../components/ui/PowerMeter';
 import QuestionModal from '../components/ui/QuestionModal';
 import GameControls from '../components/ui/GameControls';
 import './GamePage.css';
@@ -17,6 +16,8 @@ const GamePage = () => {
     const navigate = useNavigate();
     const { playerInfo, isAuthenticated, logout, loading } = useAuth();
     const { gameState, otherPlayerOnline, shootBall, recordGoal, answerQuestion } = useGameState();
+    const ballRef = useRef();
+    const [showGoalCelebration, setShowGoalCelebration] = useState(false);
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -40,10 +41,41 @@ const GamePage = () => {
 
     const isSuprem = playerInfo.name === 'Suprem';
     const opponentName = isSuprem ? 'Nammu' : 'Suprem';
-    const isShooter = gameState.currentShooter === playerInfo.name || !otherPlayerOnline;
+
+    // Always allow shooting in penalty mode
+    const isShooter = true;
+
+    // Determine game mode text
+    const getGameModeText = () => {
+        if (otherPlayerOnline) {
+            return <span className="mode-match">🔥 1v1 Match - Both Online!</span>;
+        }
+        return <span className="mode-penalty">⚽ Penalty Kicks vs {opponentName}</span>;
+    };
+
+    const handleShoot = (direction, power) => {
+        shootBall(direction, power);
+        // Trigger ball shoot in 3D
+        if (ballRef.current?.shoot) {
+            ballRef.current.shoot(direction, power);
+        }
+    };
+
+    const handleGoal = () => {
+        setShowGoalCelebration(true);
+        recordGoal(playerInfo.name);
+        setTimeout(() => setShowGoalCelebration(false), 2000);
+    };
 
     return (
         <div className="game-container">
+            {/* Goal Celebration Overlay */}
+            {showGoalCelebration && (
+                <div className="goal-celebration">
+                    <span className="goal-text">⚽ GOAL! ⚽</span>
+                </div>
+            )}
+
             {/* Header */}
             <header className="game-header">
                 <div className="player-info">
@@ -52,13 +84,7 @@ const GamePage = () => {
                 </div>
 
                 <div className="game-mode-badge">
-                    {gameState.gameMode === 'match' ? (
-                        <span className="mode-match">🔥 1v1 Match</span>
-                    ) : gameState.gameMode === 'penalty' ? (
-                        <span className="mode-penalty">⚽ Penalty Kicks</span>
-                    ) : (
-                        <span className="mode-waiting">⏳ Waiting...</span>
-                    )}
+                    {getGameModeText()}
                 </div>
 
                 <button className="logout-btn" onClick={logout}>
@@ -72,6 +98,15 @@ const GamePage = () => {
                 nammuScore={gameState.nammu?.score || 0}
                 currentPlayer={playerInfo.name}
             />
+
+            {/* Online Status Indicator */}
+            <div className="online-status">
+                <div className={`status-dot ${gameState.suprem?.online ? 'online' : 'offline'}`}></div>
+                <span>Suprem</span>
+                <span className="status-heart">❤️</span>
+                <div className={`status-dot ${gameState.nammu?.online ? 'online' : 'offline'}`}></div>
+                <span>Nammu</span>
+            </div>
 
             {/* 3D Game Canvas */}
             <div className="game-canvas-wrapper">
@@ -97,52 +132,41 @@ const GamePage = () => {
 
                         {/* Ball */}
                         <Ball
+                            ref={ballRef}
                             position={gameState.ballPosition}
                             isShooter={isShooter}
-                            onShoot={shootBall}
-                            onGoal={() => recordGoal(playerInfo.name)}
+                            onShoot={handleShoot}
+                            onGoal={handleGoal}
                         />
 
-                        {/* Characters */}
+                        {/* Current Player (Shooter) */}
                         <Character
-                            name="Suprem"
-                            position={isSuprem ? [0, 0, 6] : [0, 0, -4]}
-                            isPlayer={isSuprem}
-                            isKeeper={!isSuprem && !otherPlayerOnline}
-                            isOnline={gameState.suprem?.online}
+                            name={playerInfo.name}
+                            position={[0, 0, 6]}
+                            isPlayer={true}
+                            isKeeper={false}
+                            isOnline={true}
                         />
+
+                        {/* Opponent (Goalkeeper) */}
                         <Character
-                            name="Nammu"
-                            position={!isSuprem ? [0, 0, 6] : [0, 0, -4]}
-                            isPlayer={!isSuprem}
-                            isKeeper={isSuprem && !otherPlayerOnline}
-                            isOnline={gameState.nammu?.online}
+                            name={opponentName}
+                            position={[0, 0, -4]}
+                            isPlayer={false}
+                            isKeeper={true}
+                            isOnline={otherPlayerOnline}
                         />
                     </Suspense>
                 </Canvas>
             </div>
 
-            {/* Game Controls */}
-            {isShooter && (
-                <GameControls onShoot={shootBall} />
-            )}
+            {/* Game Controls - Always visible for penalty kicks */}
+            <GameControls onShoot={handleShoot} />
 
-            {/* Power Meter */}
-            {isShooter && <PowerMeter />}
-
-            {/* Status Messages */}
-            {!otherPlayerOnline && (
-                <div className="waiting-opponent">
-                    <p>
-                        <span className="waiting-emoji">💕</span>
-                        Waiting for {opponentName} to join...
-                        <span className="waiting-emoji">💕</span>
-                    </p>
-                    <p className="waiting-subtext">
-                        Practice your penalty kicks while you wait! ⚽
-                    </p>
-                </div>
-            )}
+            {/* Helpful Tips */}
+            <div className="game-tips">
+                <p>🎯 Aim and shoot to score against {opponentName}!</p>
+            </div>
 
             {/* Question Modal */}
             {gameState.questionActive && (

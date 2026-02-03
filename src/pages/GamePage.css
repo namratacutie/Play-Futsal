@@ -138,6 +138,107 @@
     z-index: 100;
 }
 
+/* Online Status Indicator */
+.online-status {
+    position: fixed;
+    top: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+    z-index: 100;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-dot.online {
+    background: #2ecc71;
+    box-shadow: 0 0 10px #2ecc71;
+}
+
+.status-dot.offline {
+    background: #7f8c8d;
+}
+
+.status-heart {
+    font-size: 0.9rem;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+/* Goal Celebration */
+.goal-celebration {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 500;
+    animation: fadeIn 0.3s ease;
+}
+
+.goal-text {
+    font-size: 4rem;
+    color: #ff6b95;
+    font-weight: 800;
+    text-shadow: 0 0 30px rgba(255, 107, 149, 0.8);
+    animation: goalBounce 0.5s ease infinite;
+}
+
+@keyframes goalBounce {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Game Tips */
+.game-tips {
+    position: fixed;
+    bottom: 200px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    z-index: 90;
+}
+
+.game-tips p {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
 .waiting-opponent p {
     color: #ff6b95;
     margin: 0;

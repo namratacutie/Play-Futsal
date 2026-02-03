@@ -1,23 +1,20 @@
-// Authentication Context for managing user state
+// Authentication Context - Password Based (No Firebase Billing Required)
 import { createContext, useContext, useState, useEffect } from 'react';
-import { auth, database } from '../firebase';
-import {
-    RecaptchaVerifier,
-    signInWithPhoneNumber,
-    signOut,
-    onAuthStateChanged
-} from 'firebase/auth';
+import { database } from '../firebase';
 import { ref, set, onDisconnect, onValue, serverTimestamp } from 'firebase/database';
 
 const AuthContext = createContext();
 
 // Allowed phone numbers and their player mappings
 const ALLOWED_USERS = {
-    '+9779742246521': { name: 'Suprem', gender: 'male', avatar: '👨' },
-    '+9779841001742': { name: 'Nammu', gender: 'female', avatar: '👩' },
-    // Also allow without country code
     '9742246521': { name: 'Suprem', gender: 'male', avatar: '👨' },
     '9841001742': { name: 'Nammu', gender: 'female', avatar: '👩' }
+};
+
+// Storage keys
+const STORAGE_KEYS = {
+    PASSWORDS: 'playfutsal_passwords',
+    CURRENT_USER: 'playfutsal_current_user'
 };
 
 export const useAuth = () => {
@@ -33,124 +30,154 @@ export const AuthProvider = ({ children }) => {
     const [playerInfo, setPlayerInfo] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [confirmationResult, setConfirmationResult] = useState(null);
 
-    // Listen to auth state changes
+    // Check for existing session on mount
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            if (firebaseUser) {
-                const phoneNumber = firebaseUser.phoneNumber;
-                const normalizedPhone = phoneNumber?.replace('+977', '');
-                const player = ALLOWED_USERS[phoneNumber] || ALLOWED_USERS[normalizedPhone];
-
+        const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+        if (savedUser) {
+            try {
+                const userData = JSON.parse(savedUser);
+                const player = ALLOWED_USERS[userData.phone];
                 if (player) {
-                    setUser(firebaseUser);
+                    setUser(userData);
                     setPlayerInfo(player);
-                    // Set presence in database
                     updatePresence(player.name, true);
-                } else {
-                    // Not an allowed user
-                    signOut(auth);
-                    setError('This phone number is not authorized to play.');
                 }
-            } else {
-                setUser(null);
-                setPlayerInfo(null);
+            } catch (e) {
+                localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
             }
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        }
+        setLoading(false);
     }, []);
+
+    // Get saved passwords
+    const getSavedPasswords = () => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
+            return saved ? JSON.parse(saved) : {};
+        } catch {
+            return {};
+        }
+    };
+
+    // Save password
+    const savePassword = (phone, password) => {
+        const passwords = getSavedPasswords();
+        passwords[phone] = password;
+        localStorage.setItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(passwords));
+    };
+
+    // Check if user has set password
+    const hasPassword = (phone) => {
+        const passwords = getSavedPasswords();
+        return !!passwords[phone];
+    };
+
+    // Verify password
+    const verifyPassword = (phone, password) => {
+        const passwords = getSavedPasswords();
+        return passwords[phone] === password;
+    };
 
     // Update presence in realtime database
     const updatePresence = async (playerName, isOnline) => {
-        const presenceRef = ref(database, `presence/${playerName}`);
+        try {
+            const presenceRef = ref(database, `presence/${playerName}`);
 
-        if (isOnline) {
-            await set(presenceRef, {
-                online: true,
-                lastSeen: serverTimestamp()
-            });
+            if (isOnline) {
+                await set(presenceRef, {
+                    online: true,
+                    lastSeen: serverTimestamp()
+                });
 
-            // Set up disconnect handler
-            onDisconnect(presenceRef).set({
-                online: false,
-                lastSeen: serverTimestamp()
-            });
-        } else {
-            await set(presenceRef, {
-                online: false,
-                lastSeen: serverTimestamp()
-            });
+                // Set up disconnect handler
+                onDisconnect(presenceRef).set({
+                    online: false,
+                    lastSeen: serverTimestamp()
+                });
+            } else {
+                await set(presenceRef, {
+                    online: false,
+                    lastSeen: serverTimestamp()
+                });
+            }
+        } catch (e) {
+            console.log('Presence update error (Firebase may not be configured):', e.message);
         }
     };
 
-    // Initialize reCAPTCHA verifier
-    const setupRecaptcha = (buttonId) => {
-        if (!window.recaptchaVerifier) {
-            window.recaptchaVerifier = new RecaptchaVerifier(auth, buttonId, {
-                size: 'invisible',
-                callback: () => {
-                    console.log('reCAPTCHA solved');
-                }
-            });
-        }
-        return window.recaptchaVerifier;
+    // Check if phone is allowed
+    const isAllowedPhone = (phone) => {
+        const normalized = phone.replace(/\D/g, '');
+        return !!ALLOWED_USERS[normalized];
     };
 
-    // Send OTP to phone number
-    const sendOTP = async (phoneNumber) => {
+    // Login with password
+    const login = async (phone, password) => {
         setError(null);
+        const normalized = phone.replace(/\D/g, '');
 
-        // Normalize phone number
-        let formattedPhone = phoneNumber.replace(/\D/g, '');
-        if (!formattedPhone.startsWith('977')) {
-            formattedPhone = '977' + formattedPhone;
+        // Check if allowed
+        if (!isAllowedPhone(normalized)) {
+            setError('💔 Sorry, only Suprem and Nammu can play this game!');
+            return { success: false, needsSetup: false };
         }
-        formattedPhone = '+' + formattedPhone;
 
-        // Check if phone is allowed
-        const normalizedCheck = formattedPhone.replace('+977', '');
-        if (!ALLOWED_USERS[formattedPhone] && !ALLOWED_USERS[normalizedCheck]) {
+        // Check if needs to set password (first time)
+        if (!hasPassword(normalized)) {
+            return { success: false, needsSetup: true };
+        }
+
+        // Verify password
+        if (!verifyPassword(normalized, password)) {
+            setError('❌ Wrong password! Try again.');
+            return { success: false, needsSetup: false };
+        }
+
+        // Success!
+        const player = ALLOWED_USERS[normalized];
+        const userData = { phone: normalized, name: player.name };
+
+        setUser(userData);
+        setPlayerInfo(player);
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(userData));
+
+        // Update presence
+        updatePresence(player.name, true);
+
+        return { success: true, needsSetup: false };
+    };
+
+    // Set up password (first time)
+    const setupPassword = async (phone, password) => {
+        setError(null);
+        const normalized = phone.replace(/\D/g, '');
+
+        if (!isAllowedPhone(normalized)) {
             setError('💔 Sorry, only Suprem and Nammu can play this game!');
             return false;
         }
 
-        try {
-            const recaptchaVerifier = setupRecaptcha('recaptcha-container');
-            const result = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
-            setConfirmationResult(result);
-            return true;
-        } catch (err) {
-            console.error('OTP send error:', err);
-            setError('Failed to send OTP. Please try again.');
-            // Reset reCAPTCHA on error
-            if (window.recaptchaVerifier) {
-                window.recaptchaVerifier.clear();
-                window.recaptchaVerifier = null;
-            }
-            return false;
-        }
-    };
-
-    // Verify OTP
-    const verifyOTP = async (otp) => {
-        setError(null);
-
-        if (!confirmationResult) {
-            setError('Please request OTP first.');
+        if (password.length < 4) {
+            setError('Password must be at least 4 characters!');
             return false;
         }
 
-        try {
-            await confirmationResult.confirm(otp);
-            return true;
-        } catch (err) {
-            console.error('OTP verification error:', err);
-            setError('Invalid OTP. Please try again.');
-            return false;
-        }
+        // Save password
+        savePassword(normalized, password);
+
+        // Auto login
+        const player = ALLOWED_USERS[normalized];
+        const userData = { phone: normalized, name: player.name };
+
+        setUser(userData);
+        setPlayerInfo(player);
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(userData));
+
+        // Update presence
+        updatePresence(player.name, true);
+
+        return true;
     };
 
     // Logout
@@ -158,7 +185,9 @@ export const AuthProvider = ({ children }) => {
         if (playerInfo) {
             await updatePresence(playerInfo.name, false);
         }
-        await signOut(auth);
+        setUser(null);
+        setPlayerInfo(null);
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     };
 
     const value = {
@@ -166,9 +195,11 @@ export const AuthProvider = ({ children }) => {
         playerInfo,
         loading,
         error,
-        sendOTP,
-        verifyOTP,
+        login,
+        setupPassword,
         logout,
+        isAllowedPhone,
+        hasPassword: (phone) => hasPassword(phone.replace(/\D/g, '')),
         isAuthenticated: !!user
     };
 
