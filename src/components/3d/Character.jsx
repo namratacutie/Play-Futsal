@@ -1,4 +1,4 @@
-// Character Component - Suprem & Nammu
+// Character Component - Suprem & Nammu (Fixed Proportions)
 import { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
@@ -8,29 +8,32 @@ const Character = ({ name, position, isPlayer, isKeeper, isOnline }) => {
     const characterRef = useRef();
     const [isHit, setIsHit] = useState(false);
     const [hitAnimation, setHitAnimation] = useState(0);
-    const [jumpPhase, setJumpPhase] = useState(0);
+    const [armAngle, setArmAngle] = useState(0);
 
     const isMale = name === 'Suprem';
     const primaryColor = isMale ? '#6495ed' : '#ff6b95';
     const secondaryColor = isMale ? '#4169e1' : '#ff4757';
+    const skinColor = '#e8beac';
+    const hairColor = isMale ? '#3d2314' : '#1a1a1a';
 
     // Animation loop
     useFrame((state, delta) => {
         if (!characterRef.current) return;
 
-        // Idle animation - slight movement
-        if (!isHit) {
-            characterRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.05;
-        }
+        // Keeper ready stance animation
+        if (isKeeper) {
+            // Sway side to side
+            const sway = Math.sin(state.clock.elapsedTime * 2) * 0.3;
+            characterRef.current.position.x = position[0] + sway;
 
-        // Keeper movement if AI controlled
-        if (isKeeper && !isOnline) {
-            const targetX = Math.sin(state.clock.elapsedTime * 1.5) * 1.5;
-            characterRef.current.position.x = THREE.MathUtils.lerp(
-                characterRef.current.position.x,
-                targetX,
-                delta * 2
-            );
+            // Slight bounce
+            characterRef.current.position.y = position[1] + Math.abs(Math.sin(state.clock.elapsedTime * 3)) * 0.1;
+
+            // Arms ready position
+            setArmAngle(Math.sin(state.clock.elapsedTime * 2) * 0.2);
+        } else if (isPlayer) {
+            // Striker idle animation
+            characterRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 1.5) * 0.03;
         }
 
         // Hit animation (funny injury)
@@ -38,33 +41,29 @@ const Character = ({ name, position, isPlayer, isKeeper, isOnline }) => {
             setHitAnimation(prev => prev + delta);
 
             if (hitAnimation < 0.3) {
-                // Stumble back
-                characterRef.current.rotation.x = Math.sin(hitAnimation * 20) * 0.5;
-            } else if (hitAnimation < 1) {
-                // Fall down
-                characterRef.current.rotation.x = Math.PI / 2 * Math.min(1, (hitAnimation - 0.3) * 3);
-            } else if (hitAnimation > 2) {
+                characterRef.current.rotation.x = Math.sin(hitAnimation * 20) * 0.3;
+                characterRef.current.rotation.z = Math.sin(hitAnimation * 15) * 0.2;
+            } else if (hitAnimation < 1.5) {
+                // Dramatic fall
+                characterRef.current.rotation.x = Math.min(Math.PI / 3, (hitAnimation - 0.3) * 2);
+                characterRef.current.position.y = Math.max(-0.3, position[1] - (hitAnimation - 0.3) * 0.5);
+            } else if (hitAnimation > 3) {
                 // Reset
                 setIsHit(false);
                 setHitAnimation(0);
                 characterRef.current.rotation.x = 0;
+                characterRef.current.rotation.z = 0;
+                characterRef.current.position.y = position[1];
             }
-        }
-
-        // Keeper diving animation
-        if (jumpPhase > 0) {
-            setJumpPhase(prev => Math.max(0, prev - delta));
-            characterRef.current.position.y = Math.sin(jumpPhase * Math.PI) * 0.5;
         }
     });
 
-    // Trigger hit animation when ball hits
+    // Trigger hit animation
     const onBallHit = () => {
         setIsHit(true);
         setHitAnimation(0);
     };
 
-    // Expose hit function
     useEffect(() => {
         if (characterRef.current) {
             characterRef.current.userData.onHit = onBallHit;
@@ -73,151 +72,234 @@ const Character = ({ name, position, isPlayer, isKeeper, isOnline }) => {
 
     return (
         <group ref={characterRef} position={position}>
-            {/* Body */}
-            <mesh castShadow position={[0, 0.8, 0]}>
-                <capsuleGeometry args={[0.3, 0.6, 8, 16]} />
+            {/* Body/Torso */}
+            <mesh castShadow position={[0, 0.9, 0]}>
+                <cylinderGeometry args={[0.25, 0.3, 0.7, 16]} />
                 <meshStandardMaterial color={primaryColor} />
             </mesh>
 
             {/* Head */}
             <mesh castShadow position={[0, 1.5, 0]}>
-                <sphereGeometry args={[0.25, 16, 16]} />
-                <meshStandardMaterial color="#ffd5c8" />
+                <sphereGeometry args={[0.22, 24, 24]} />
+                <meshStandardMaterial color={skinColor} />
             </mesh>
 
             {/* Hair */}
-            <mesh position={[0, 1.65, 0]}>
-                <sphereGeometry args={[0.27, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-                <meshStandardMaterial color={isMale ? '#4a3728' : '#1a1a1a'} />
-            </mesh>
+            {isMale ? (
+                // Short hair for Suprem
+                <mesh position={[0, 1.62, 0]}>
+                    <sphereGeometry args={[0.23, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                    <meshStandardMaterial color={hairColor} />
+                </mesh>
+            ) : (
+                // Longer hair for Nammu
+                <group>
+                    <mesh position={[0, 1.62, 0]}>
+                        <sphereGeometry args={[0.24, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                        <meshStandardMaterial color={hairColor} />
+                    </mesh>
+                    {/* Side hair */}
+                    <mesh position={[-0.18, 1.4, 0]}>
+                        <capsuleGeometry args={[0.06, 0.3, 4, 8]} />
+                        <meshStandardMaterial color={hairColor} />
+                    </mesh>
+                    <mesh position={[0.18, 1.4, 0]}>
+                        <capsuleGeometry args={[0.06, 0.3, 4, 8]} />
+                        <meshStandardMaterial color={hairColor} />
+                    </mesh>
+                </group>
+            )}
 
+            {/* Face Features */}
             {/* Eyes */}
-            <mesh position={[-0.08, 1.55, 0.2]}>
-                <sphereGeometry args={[0.04, 8, 8]} />
+            <mesh position={[-0.07, 1.52, 0.18]}>
+                <sphereGeometry args={[0.035, 8, 8]} />
+                <meshBasicMaterial color="#ffffff" />
+            </mesh>
+            <mesh position={[0.07, 1.52, 0.18]}>
+                <sphereGeometry args={[0.035, 8, 8]} />
+                <meshBasicMaterial color="#ffffff" />
+            </mesh>
+            {/* Pupils */}
+            <mesh position={[-0.07, 1.52, 0.21]}>
+                <sphereGeometry args={[0.018, 8, 8]} />
                 <meshBasicMaterial color="#333333" />
             </mesh>
-            <mesh position={[0.08, 1.55, 0.2]}>
-                <sphereGeometry args={[0.04, 8, 8]} />
+            <mesh position={[0.07, 1.52, 0.21]}>
+                <sphereGeometry args={[0.018, 8, 8]} />
                 <meshBasicMaterial color="#333333" />
             </mesh>
 
             {/* Smile */}
-            <mesh position={[0, 1.42, 0.22]} rotation={[0, 0, 0]}>
-                <torusGeometry args={[0.06, 0.015, 8, 16, Math.PI]} />
-                <meshBasicMaterial color="#ff4757" />
+            <mesh position={[0, 1.42, 0.19]} rotation={[0.2, 0, 0]}>
+                <torusGeometry args={[0.05, 0.012, 8, 16, Math.PI]} />
+                <meshBasicMaterial color="#d4756b" />
             </mesh>
 
-            {/* Jersey Number / Heart */}
-            <mesh position={[0, 0.9, 0.31]}>
-                <planeGeometry args={[0.15, 0.15]} />
-                <meshBasicMaterial color="#ffffff" />
+            {/* Neck */}
+            <mesh position={[0, 1.2, 0]}>
+                <cylinderGeometry args={[0.08, 0.1, 0.15, 12]} />
+                <meshStandardMaterial color={skinColor} />
             </mesh>
 
-            {/* Arms */}
-            <mesh castShadow position={[-0.4, 0.9, 0]} rotation={[0, 0, Math.PI / 6]}>
-                <capsuleGeometry args={[0.08, 0.4, 4, 8]} />
-                <meshStandardMaterial color={primaryColor} />
-            </mesh>
-            <mesh castShadow position={[0.4, 0.9, 0]} rotation={[0, 0, -Math.PI / 6]}>
-                <capsuleGeometry args={[0.08, 0.4, 4, 8]} />
-                <meshStandardMaterial color={primaryColor} />
-            </mesh>
+            {/* Arms - Connected to body */}
+            {/* Left Arm */}
+            <group position={[-0.35, 0.95, 0]} rotation={[0, 0, Math.PI / 6 + armAngle]}>
+                {/* Upper arm */}
+                <mesh castShadow position={[0, -0.15, 0]}>
+                    <capsuleGeometry args={[0.06, 0.25, 4, 8]} />
+                    <meshStandardMaterial color={primaryColor} />
+                </mesh>
+                {/* Lower arm */}
+                <mesh castShadow position={[0, -0.4, 0.05]}>
+                    <capsuleGeometry args={[0.05, 0.2, 4, 8]} />
+                    <meshStandardMaterial color={skinColor} />
+                </mesh>
+                {/* Hand */}
+                <mesh position={[0, -0.55, 0.08]}>
+                    <sphereGeometry args={[0.06, 8, 8]} />
+                    <meshStandardMaterial color={skinColor} />
+                </mesh>
+            </group>
 
-            {/* Hands */}
-            <mesh position={[-0.55, 0.6, 0]}>
-                <sphereGeometry args={[0.08, 8, 8]} />
-                <meshStandardMaterial color="#ffd5c8" />
-            </mesh>
-            <mesh position={[0.55, 0.6, 0]}>
-                <sphereGeometry args={[0.08, 8, 8]} />
-                <meshStandardMaterial color="#ffd5c8" />
+            {/* Right Arm */}
+            <group position={[0.35, 0.95, 0]} rotation={[0, 0, -Math.PI / 6 - armAngle]}>
+                {/* Upper arm */}
+                <mesh castShadow position={[0, -0.15, 0]}>
+                    <capsuleGeometry args={[0.06, 0.25, 4, 8]} />
+                    <meshStandardMaterial color={primaryColor} />
+                </mesh>
+                {/* Lower arm */}
+                <mesh castShadow position={[0, -0.4, 0.05]}>
+                    <capsuleGeometry args={[0.05, 0.2, 4, 8]} />
+                    <meshStandardMaterial color={skinColor} />
+                </mesh>
+                {/* Hand */}
+                <mesh position={[0, -0.55, 0.08]}>
+                    <sphereGeometry args={[0.06, 8, 8]} />
+                    <meshStandardMaterial color={skinColor} />
+                </mesh>
+            </group>
+
+            {/* Keeper Gloves */}
+            {isKeeper && (
+                <>
+                    <mesh position={[-0.35 - Math.sin(Math.PI / 6 + armAngle) * 0.55, 0.95 - Math.cos(Math.PI / 6 + armAngle) * 0.55, 0.08]}>
+                        <sphereGeometry args={[0.09, 8, 8]} />
+                        <meshStandardMaterial color="#ffeb3b" />
+                    </mesh>
+                    <mesh position={[0.35 + Math.sin(Math.PI / 6 + armAngle) * 0.55, 0.95 - Math.cos(Math.PI / 6 + armAngle) * 0.55, 0.08]}>
+                        <sphereGeometry args={[0.09, 8, 8]} />
+                        <meshStandardMaterial color="#ffeb3b" />
+                    </mesh>
+                </>
+            )}
+
+            {/* Shorts */}
+            <mesh castShadow position={[0, 0.45, 0]}>
+                <cylinderGeometry args={[0.28, 0.25, 0.25, 16]} />
+                <meshStandardMaterial color={secondaryColor} />
             </mesh>
 
             {/* Legs */}
-            <mesh castShadow position={[-0.15, 0.25, 0]}>
-                <capsuleGeometry args={[0.1, 0.4, 4, 8]} />
-                <meshStandardMaterial color={secondaryColor} />
-            </mesh>
-            <mesh castShadow position={[0.15, 0.25, 0]}>
-                <capsuleGeometry args={[0.1, 0.4, 4, 8]} />
-                <meshStandardMaterial color={secondaryColor} />
-            </mesh>
+            {/* Left Leg */}
+            <group position={[-0.12, 0.3, 0]}>
+                <mesh castShadow position={[0, -0.15, 0]}>
+                    <capsuleGeometry args={[0.08, 0.25, 4, 8]} />
+                    <meshStandardMaterial color={skinColor} />
+                </mesh>
+                {/* Shin/Sock */}
+                <mesh castShadow position={[0, -0.38, 0]}>
+                    <capsuleGeometry args={[0.07, 0.2, 4, 8]} />
+                    <meshStandardMaterial color="#ffffff" />
+                </mesh>
+                {/* Foot */}
+                <mesh position={[0, -0.52, 0.06]}>
+                    <boxGeometry args={[0.1, 0.06, 0.18]} />
+                    <meshStandardMaterial color="#2c3e50" />
+                </mesh>
+            </group>
 
-            {/* Feet */}
-            <mesh position={[-0.15, 0, 0.05]} rotation={[0, 0, Math.PI / 2]}>
-                <capsuleGeometry args={[0.08, 0.15, 4, 8]} />
-                <meshStandardMaterial color="#333333" />
-            </mesh>
-            <mesh position={[0.15, 0, 0.05]} rotation={[0, 0, Math.PI / 2]}>
-                <capsuleGeometry args={[0.08, 0.15, 4, 8]} />
-                <meshStandardMaterial color="#333333" />
-            </mesh>
+            {/* Right Leg */}
+            <group position={[0.12, 0.3, 0]}>
+                <mesh castShadow position={[0, -0.15, 0]}>
+                    <capsuleGeometry args={[0.08, 0.25, 4, 8]} />
+                    <meshStandardMaterial color={skinColor} />
+                </mesh>
+                {/* Shin/Sock */}
+                <mesh castShadow position={[0, -0.38, 0]}>
+                    <capsuleGeometry args={[0.07, 0.2, 4, 8]} />
+                    <meshStandardMaterial color="#ffffff" />
+                </mesh>
+                {/* Foot */}
+                <mesh position={[0, -0.52, 0.06]}>
+                    <boxGeometry args={[0.1, 0.06, 0.18]} />
+                    <meshStandardMaterial color="#2c3e50" />
+                </mesh>
+            </group>
+
+            {/* Jersey Number */}
+            <Text
+                position={[0, 0.9, 0.26]}
+                fontSize={0.15}
+                color="#ffffff"
+                anchorX="center"
+                anchorY="middle"
+            >
+                {isMale ? '10' : '7'}
+            </Text>
 
             {/* Name Tag */}
             <Text
-                position={[0, 2, 0]}
-                fontSize={0.2}
+                position={[0, 1.9, 0]}
+                fontSize={0.15}
                 color={primaryColor}
                 anchorX="center"
                 anchorY="middle"
+                outlineWidth={0.01}
+                outlineColor="#000000"
             >
                 {name}
             </Text>
 
             {/* Online Indicator */}
             {isOnline && (
-                <mesh position={[0.35, 2, 0]}>
-                    <sphereGeometry args={[0.06, 8, 8]} />
-                    <meshBasicMaterial color="#00ff00" />
+                <mesh position={[0.25, 1.9, 0]}>
+                    <sphereGeometry args={[0.04, 8, 8]} />
+                    <meshBasicMaterial color="#2ecc71" />
                 </mesh>
             )}
 
-            {/* Keeper Gloves (if goalkeeper) */}
-            {isKeeper && (
-                <>
-                    <mesh position={[-0.55, 0.6, 0]}>
-                        <sphereGeometry args={[0.12, 8, 8]} />
-                        <meshStandardMaterial color="#ffff00" />
-                    </mesh>
-                    <mesh position={[0.55, 0.6, 0]}>
-                        <sphereGeometry args={[0.12, 8, 8]} />
-                        <meshStandardMaterial color="#ffff00" />
-                    </mesh>
-                </>
-            )}
-
-            {/* Special effect for player character */}
+            {/* Player indicator ring */}
             {isPlayer && (
-                <mesh position={[0, 0, 0]}>
-                    <ringGeometry args={[0.5, 0.55, 32]} />
-                    <meshBasicMaterial color={primaryColor} transparent opacity={0.5} side={THREE.DoubleSide} />
+                <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[0.4, 0.45, 32]} />
+                    <meshBasicMaterial color={primaryColor} transparent opacity={0.6} side={THREE.DoubleSide} />
                 </mesh>
             )}
 
-            {/* Funny injury effects */}
+            {/* Injury effects */}
             {isHit && (
                 <>
-                    {/* Stars spinning around head */}
+                    {/* Stars */}
                     <group position={[0, 1.8, 0]}>
                         {[0, 1, 2].map(i => (
                             <mesh
                                 key={i}
                                 position={[
-                                    Math.cos(hitAnimation * 5 + i * 2.1) * 0.4,
-                                    0.1,
-                                    Math.sin(hitAnimation * 5 + i * 2.1) * 0.4
+                                    Math.cos(hitAnimation * 5 + i * 2.1) * 0.35,
+                                    0.15,
+                                    Math.sin(hitAnimation * 5 + i * 2.1) * 0.35
                                 ]}
                             >
-                                <octahedronGeometry args={[0.08]} />
-                                <meshBasicMaterial color="#ffff00" />
+                                <octahedronGeometry args={[0.06]} />
+                                <meshBasicMaterial color="#ffeb3b" />
                             </mesh>
                         ))}
                     </group>
-
-                    {/* Speech bubble */}
                     <Text
-                        position={[0.5, 2.2, 0]}
-                        fontSize={0.25}
+                        position={[0.4, 2, 0]}
+                        fontSize={0.18}
                         color="#ff4757"
                         anchorX="center"
                     >

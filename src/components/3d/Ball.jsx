@@ -1,96 +1,131 @@
-// 3D Football with Heart Pattern
-import { useRef, useState, useEffect } from 'react';
+// 3D Football with Realistic Physics
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-const Ball = ({ position, isShooter, onShoot, onGoal }) => {
+const Ball = forwardRef(({ position, isShooter, onShoot, onGoal }, ref) => {
     const ballRef = useRef();
-    const trailRef = useRef([]);
     const [isAnimating, setIsAnimating] = useState(false);
     const [velocity, setVelocity] = useState({ x: 0, y: 0, z: 0 });
-    const [currentPos, setCurrentPos] = useState(position || { x: 0, y: 0.3, z: 5 });
+    const [currentPos, setCurrentPos] = useState({ x: 0, y: 0.3, z: 5 });
+    const [rotation, setRotation] = useState({ x: 0, y: 0 });
+    const [hasScored, setHasScored] = useState(false);
 
-    // Update position from props
-    useEffect(() => {
-        if (position && !isAnimating) {
-            setCurrentPos({
-                x: position.x || 0,
-                y: position.y || 0.3,
-                z: position.z || 5
-            });
-        }
-    }, [position, isAnimating]);
+    // Reset position
+    const resetBall = () => {
+        setCurrentPos({ x: 0, y: 0.3, z: 5 });
+        setVelocity({ x: 0, y: 0, z: 0 });
+        setIsAnimating(false);
+        setHasScored(false);
+    };
+
+    // Shoot function exposed via ref
+    const shoot = (direction, power) => {
+        if (isAnimating) return;
+
+        setIsAnimating(true);
+        setHasScored(false);
+
+        // Calculate velocity based on direction and power
+        const speed = 0.3 + power * 0.4; // Base speed + power bonus
+        const lift = 0.08 + power * 0.12; // Ball arc
+
+        setVelocity({
+            x: direction * speed * 0.5, // Side movement
+            y: lift, // Initial upward velocity
+            z: -speed // Forward velocity (towards goal)
+        });
+
+        onShoot?.(direction, power);
+    };
+
+    // Expose shoot function to parent
+    useImperativeHandle(ref, () => ({
+        shoot,
+        reset: resetBall
+    }));
 
     // Ball animation loop
     useFrame((state, delta) => {
         if (!ballRef.current) return;
 
-        // Update ball position
+        // Update ball mesh position
         ballRef.current.position.set(currentPos.x, currentPos.y, currentPos.z);
 
-        // Idle rotation
         if (!isAnimating) {
-            ballRef.current.rotation.x += delta * 0.5;
-            ballRef.current.rotation.y += delta * 0.3;
-        }
+            // Idle rotation
+            setRotation(prev => ({
+                x: prev.x + delta * 0.5,
+                y: prev.y + delta * 0.3
+            }));
+        } else {
+            // Apply physics
+            const gravity = 0.015;
+            const friction = 0.995;
+            const groundLevel = 0.3;
 
-        // Shot animation
-        if (isAnimating) {
-            // Apply velocity
-            const newPos = {
-                x: currentPos.x + velocity.x * delta * 60,
-                y: Math.max(0.3, currentPos.y + velocity.y * delta * 60),
-                z: currentPos.z + velocity.z * delta * 60
+            // Update velocity
+            const newVelocity = {
+                x: velocity.x * friction,
+                y: velocity.y - gravity, // Gravity
+                z: velocity.z * friction
             };
 
-            // Apply gravity
-            setVelocity(prev => ({
-                ...prev,
-                y: prev.y - 0.01
-            }));
+            // Update position
+            let newPos = {
+                x: currentPos.x + newVelocity.x,
+                y: currentPos.y + newVelocity.y,
+                z: currentPos.z + newVelocity.z
+            };
 
-            setCurrentPos(newPos);
+            // Ground bounce
+            if (newPos.y < groundLevel) {
+                newPos.y = groundLevel;
+                newVelocity.y = Math.abs(newVelocity.y) * 0.5; // Bounce with energy loss
 
-            // Check for goal
-            if (newPos.z <= -11) {
-                if (Math.abs(newPos.x) < 2 && newPos.y < 2) {
-                    onGoal?.();
-                }
-                // Reset ball
-                setIsAnimating(false);
-                setVelocity({ x: 0, y: 0, z: 0 });
-                setCurrentPos({ x: 0, y: 0.3, z: 5 });
+                // Friction on ground
+                newVelocity.x *= 0.8;
+                newVelocity.z *= 0.8;
             }
 
-            // Ball spin during shot
-            ballRef.current.rotation.x -= delta * 10;
+            // Ball spin during flight
+            setRotation(prev => ({
+                x: prev.x - delta * 15 * Math.abs(newVelocity.z),
+                y: prev.y + delta * 5 * newVelocity.x
+            }));
+
+            setVelocity(newVelocity);
+            setCurrentPos(newPos);
+
+            // Check for goal (goal line at z = -10, goal width = 4, height = 2)
+            if (newPos.z <= -10 && !hasScored) {
+                if (Math.abs(newPos.x) < 2 && newPos.y < 2.5 && newPos.y > 0) {
+                    // GOAL!
+                    setHasScored(true);
+                    onGoal?.();
+                    setTimeout(resetBall, 2000);
+                } else {
+                    // Miss - reset after a moment
+                    setTimeout(resetBall, 1500);
+                }
+            }
+
+            // Ball went too far - reset
+            if (newPos.z < -15 || Math.abs(newPos.x) > 12) {
+                setTimeout(resetBall, 500);
+            }
+
+            // Ball stopped moving - reset
+            const totalVelocity = Math.abs(newVelocity.x) + Math.abs(newVelocity.y) + Math.abs(newVelocity.z);
+            if (totalVelocity < 0.01 && newPos.z < 4) {
+                setTimeout(resetBall, 1000);
+            }
         }
+
+        // Apply rotation
+        ballRef.current.rotation.x = rotation.x;
+        ballRef.current.rotation.y = rotation.y;
     });
-
-    // Handle shooting (simplified - will be controlled by GameControls)
-    const handleClick = () => {
-        if (!isShooter || isAnimating) return;
-
-        // Default shot
-        shoot(0, 0.8);
-    };
-
-    const shoot = (direction, power) => {
-        setIsAnimating(true);
-        setVelocity({
-            x: direction * power * 0.3,
-            y: 0.15 * power,
-            z: -power * 0.5
-        });
-        onShoot?.(direction, power);
-    };
-
-    // Expose shoot function for external controls
-    useEffect(() => {
-        if (ballRef.current) {
-            ballRef.current.userData.shoot = shoot;
-        }
-    }, []);
 
     return (
         <group>
@@ -99,91 +134,55 @@ const Ball = ({ position, isShooter, onShoot, onGoal }) => {
                 ref={ballRef}
                 position={[currentPos.x, currentPos.y, currentPos.z]}
                 castShadow
-                onClick={handleClick}
             >
-                <sphereGeometry args={[0.3, 32, 32]} />
-                <meshStandardMaterial>
-                    <primitive attach="map" object={createBallTexture()} />
-                </meshStandardMaterial>
+                <sphereGeometry args={[0.22, 32, 32]} />
+                <meshStandardMaterial
+                    color="#ffffff"
+                    roughness={0.4}
+                    metalness={0.1}
+                />
+                {/* Ball pattern */}
+                <mesh>
+                    <icosahedronGeometry args={[0.225, 0]} />
+                    <meshBasicMaterial color="#333333" wireframe />
+                </mesh>
             </mesh>
 
-            {/* Ball glow */}
-            <mesh position={[currentPos.x, currentPos.y, currentPos.z]}>
-                <sphereGeometry args={[0.35, 16, 16]} />
-                <meshBasicMaterial color="#ff6b95" transparent opacity={0.2} />
+            {/* Ball shadow */}
+            <mesh
+                position={[currentPos.x, 0.01, currentPos.z]}
+                rotation={[-Math.PI / 2, 0, 0]}
+            >
+                <circleGeometry args={[0.2 * (1 - currentPos.y * 0.1), 16]} />
+                <meshBasicMaterial color="#000000" transparent opacity={0.3 - currentPos.y * 0.05} />
             </mesh>
 
-            {/* Trail effect when moving */}
-            {isAnimating && (
-                <Trail position={[currentPos.x, currentPos.y, currentPos.z]} />
+            {/* Trail effect when moving fast */}
+            {isAnimating && Math.abs(velocity.z) > 0.1 && (
+                <group>
+                    {[1, 2, 3].map((i) => (
+                        <mesh
+                            key={i}
+                            position={[
+                                currentPos.x - velocity.x * i * 2,
+                                currentPos.y - velocity.y * i * 2,
+                                currentPos.z - velocity.z * i * 2
+                            ]}
+                        >
+                            <sphereGeometry args={[0.15 - i * 0.03, 8, 8]} />
+                            <meshBasicMaterial
+                                color="#ff6b95"
+                                transparent
+                                opacity={0.4 - i * 0.1}
+                            />
+                        </mesh>
+                    ))}
+                </group>
             )}
         </group>
     );
-};
+});
 
-// Create ball texture with heart patterns
-const createBallTexture = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-
-    // Base color (white)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 256, 256);
-
-    // Pentagon pattern (simplified football look)
-    ctx.strokeStyle = '#333333';
-    ctx.lineWidth = 3;
-
-    // Draw some pentagon shapes
-    const drawPentagon = (x, y, size) => {
-        ctx.beginPath();
-        for (let i = 0; i < 5; i++) {
-            const angle = (i * 72 - 90) * Math.PI / 180;
-            const px = x + Math.cos(angle) * size;
-            const py = y + Math.sin(angle) * size;
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fillStyle = '#ff6b95';
-        ctx.fill();
-        ctx.stroke();
-    };
-
-    drawPentagon(128, 128, 40);
-    drawPentagon(60, 60, 30);
-    drawPentagon(196, 60, 30);
-    drawPentagon(60, 196, 30);
-    drawPentagon(196, 196, 30);
-
-    // Small hearts
-    ctx.font = '24px Arial';
-    ctx.fillStyle = '#ff4757';
-    ctx.fillText('❤', 100, 100);
-    ctx.fillText('❤', 156, 156);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    return texture;
-};
-
-// Trail component for ball movement effect
-const Trail = ({ position }) => {
-    return (
-        <group>
-            {[...Array(5)].map((_, i) => (
-                <mesh key={i} position={[position[0], position[1], position[2] + i * 0.3]}>
-                    <sphereGeometry args={[0.1 - i * 0.015, 8, 8]} />
-                    <meshBasicMaterial
-                        color="#ff6b95"
-                        transparent
-                        opacity={0.5 - i * 0.1}
-                    />
-                </mesh>
-            ))}
-        </group>
-    );
-};
+Ball.displayName = 'Ball';
 
 export default Ball;
