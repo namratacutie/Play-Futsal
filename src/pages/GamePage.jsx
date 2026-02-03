@@ -1,4 +1,4 @@
-// Main Game Page with 3D Canvas, Dynamic Camera & Trajectory Preview
+// Main Game Page with Beautiful Goal Celebration
 import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -14,34 +14,85 @@ import QuestionModal from '../components/ui/QuestionModal';
 import GameControls from '../components/ui/GameControls';
 import './GamePage.css';
 
-// Dynamic Camera that follows the action
+// Dynamic Camera
 const DynamicCamera = ({ isFollowing, targetZ }) => {
     const { camera } = useThree();
     const targetPos = useRef({ x: 0, y: 5, z: 12 });
 
     useFrame((state, delta) => {
         if (isFollowing) {
-            // Follow shot - move camera forward and slightly up
-            targetPos.current = {
-                x: 0,
-                y: 6,
-                z: Math.max(0, targetZ + 10)
-            };
+            targetPos.current = { x: 0, y: 6, z: Math.max(0, targetZ + 10) };
         } else {
-            // Default penalty kick view (behind the player)
             targetPos.current = { x: 0, y: 5, z: 12 };
         }
 
-        // Smooth camera movement
         camera.position.x += (targetPos.current.x - camera.position.x) * delta * 2;
         camera.position.y += (targetPos.current.y - camera.position.y) * delta * 2;
         camera.position.z += (targetPos.current.z - camera.position.z) * delta * 2;
-
-        // Always look at goal area
         camera.lookAt(0, 1, -5);
     });
 
     return null;
+};
+
+// Goal Celebration Component
+const GoalCelebration = ({ scorer, onComplete }) => {
+    const [phase, setPhase] = useState(1); // 1: Goal!, 2: Scorer name, 3: Hearts
+
+    useEffect(() => {
+        const timer1 = setTimeout(() => setPhase(2), 800);
+        const timer2 = setTimeout(() => setPhase(3), 1600);
+        const timer3 = setTimeout(() => onComplete(), 3000);
+
+        return () => {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+            clearTimeout(timer3);
+        };
+    }, [onComplete]);
+
+    return (
+        <div className="goal-celebration">
+            {/* Confetti/Hearts background */}
+            <div className="celebration-particles">
+                {[...Array(30)].map((_, i) => (
+                    <span
+                        key={i}
+                        className="particle"
+                        style={{
+                            left: `${Math.random() * 100}%`,
+                            animationDelay: `${Math.random() * 2}s`,
+                            animationDuration: `${2 + Math.random() * 2}s`
+                        }}
+                    >
+                        {['❤️', '⚽', '💕', '✨', '🎉'][Math.floor(Math.random() * 5)]}
+                    </span>
+                ))}
+            </div>
+
+            <div className="celebration-content">
+                {/* Phase 1: GOAL! */}
+                <div className={`celebration-phase phase-1 ${phase >= 1 ? 'active' : ''}`}>
+                    <span className="goal-icon">⚽</span>
+                    <h1 className="goal-title">GOAL!</h1>
+                </div>
+
+                {/* Phase 2: Scorer */}
+                <div className={`celebration-phase phase-2 ${phase >= 2 ? 'active' : ''}`}>
+                    <p className="scorer-text">{scorer} scores!</p>
+                </div>
+
+                {/* Phase 3: Love message */}
+                <div className={`celebration-phase phase-3 ${phase >= 3 ? 'active' : ''}`}>
+                    <div className="love-message">
+                        <span>💕</span>
+                        <p>Time for a love question...</p>
+                        <span>💕</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const GamePage = () => {
@@ -50,10 +101,12 @@ const GamePage = () => {
     const { gameState, otherPlayerOnline, shootBall, recordGoal, answerQuestion } = useGameState();
     const ballRef = useRef();
     const [showGoalCelebration, setShowGoalCelebration] = useState(false);
+    const [showQuestion, setShowQuestion] = useState(false);
     const [isFollowingBall, setIsFollowingBall] = useState(false);
     const [ballZ, setBallZ] = useState(5);
+    const [lastScorer, setLastScorer] = useState(null);
 
-    // Aiming state for trajectory preview
+    // Aiming state
     const [aimState, setAimState] = useState({
         direction: 0,
         power: 0.5,
@@ -67,7 +120,6 @@ const GamePage = () => {
         }
     }, [isAuthenticated, loading, navigate]);
 
-    // Handle aim changes from controls
     const handleAimChange = useCallback((newAimState) => {
         setAimState(newAimState);
     }, []);
@@ -89,17 +141,14 @@ const GamePage = () => {
     const opponentName = isSuprem ? 'Nammu' : 'Suprem';
 
     const handleShoot = (direction, power) => {
-        // Start following the ball
         setIsFollowingBall(true);
 
-        // Trigger ball shoot in 3D
         if (ballRef.current?.shoot) {
             ballRef.current.shoot(direction, power);
         }
 
         shootBall(direction, power);
 
-        // Stop following after shot completes
         setTimeout(() => {
             setIsFollowingBall(false);
             setBallZ(5);
@@ -107,25 +156,40 @@ const GamePage = () => {
     };
 
     const handleGoal = () => {
+        // Start celebration sequence
+        setLastScorer(playerInfo.name);
         setShowGoalCelebration(true);
         recordGoal(playerInfo.name);
-        setTimeout(() => {
-            setShowGoalCelebration(false);
-            setIsFollowingBall(false);
-        }, 2500);
+    };
+
+    const handleCelebrationComplete = () => {
+        setShowGoalCelebration(false);
+        setIsFollowingBall(false);
+        // Show question after celebration
+        setShowQuestion(true);
+    };
+
+    const handleAnswerQuestion = (answer) => {
+        answerQuestion(answer);
+        setShowQuestion(false);
     };
 
     return (
         <div className="game-container">
-            {/* Goal Celebration Overlay */}
+            {/* Goal Celebration (shows first) */}
             {showGoalCelebration && (
-                <div className="goal-celebration">
-                    <div className="goal-content">
-                        <span className="goal-emoji">⚽</span>
-                        <span className="goal-text">GOAL!</span>
-                        <span className="goal-subtext">{playerInfo.name} scores! 💕</span>
-                    </div>
-                </div>
+                <GoalCelebration
+                    scorer={lastScorer}
+                    onComplete={handleCelebrationComplete}
+                />
+            )}
+
+            {/* Question Modal (shows after celebration) */}
+            {showQuestion && (
+                <QuestionModal
+                    scorer={lastScorer}
+                    onAnswer={handleAnswerQuestion}
+                />
             )}
 
             {/* Header */}
@@ -151,7 +215,7 @@ const GamePage = () => {
                 currentPlayer={playerInfo.name}
             />
 
-            {/* Online Status Indicator */}
+            {/* Online Status */}
             <div className="online-status">
                 <div className={`status-dot ${gameState.suprem?.online ? 'online' : 'offline'}`}></div>
                 <span>Suprem</span>
@@ -160,20 +224,12 @@ const GamePage = () => {
                 <span>Nammu</span>
             </div>
 
-            {/* 3D Game Canvas */}
+            {/* 3D Canvas */}
             <div className="game-canvas-wrapper">
-                <Canvas
-                    shadows
-                    camera={{ position: [0, 5, 12], fov: 50 }}
-                >
+                <Canvas shadows camera={{ position: [0, 5, 12], fov: 50 }}>
                     <Suspense fallback={null}>
-                        {/* Dynamic Camera */}
-                        <DynamicCamera
-                            isFollowing={isFollowingBall}
-                            targetZ={ballZ}
-                        />
+                        <DynamicCamera isFollowing={isFollowingBall} targetZ={ballZ} />
 
-                        {/* Lighting */}
                         <ambientLight intensity={0.5} />
                         <directionalLight
                             position={[10, 20, 10]}
@@ -185,14 +241,11 @@ const GamePage = () => {
                         <pointLight position={[-10, 10, -10]} intensity={0.3} color="#ff6b95" />
                         <pointLight position={[10, 10, -10]} intensity={0.3} color="#6495ed" />
 
-                        {/* Sky color */}
                         <color attach="background" args={['#1a0a2e']} />
                         <fog attach="fog" args={['#1a0a2e', 25, 50]} />
 
-                        {/* Field */}
                         <FutsalField />
 
-                        {/* Trajectory Path - shows when aiming */}
                         <TrajectoryPath
                             direction={aimState.direction}
                             power={aimState.power}
@@ -200,7 +253,6 @@ const GamePage = () => {
                             startPosition={[0, 0.3, 5]}
                         />
 
-                        {/* Ball */}
                         <Ball
                             ref={ballRef}
                             position={gameState.ballPosition}
@@ -209,7 +261,6 @@ const GamePage = () => {
                             onGoal={handleGoal}
                         />
 
-                        {/* Current Player (Shooter - behind the ball) */}
                         <Character
                             name={playerInfo.name}
                             position={[0, 0, 7]}
@@ -218,7 +269,6 @@ const GamePage = () => {
                             isOnline={true}
                         />
 
-                        {/* Opponent (Goalkeeper - in front of goal) */}
                         <Character
                             name={opponentName}
                             position={[0, 0, -9]}
@@ -230,17 +280,11 @@ const GamePage = () => {
                 </Canvas>
             </div>
 
-            {/* Game Controls with Aim Callback */}
-            <GameControls
-                onShoot={handleShoot}
-                onAimChange={handleAimChange}
-            />
-
-            {/* Question Modal */}
-            {gameState.questionActive && (
-                <QuestionModal
-                    scorer={gameState.lastGoal?.scorer}
-                    onAnswer={answerQuestion}
+            {/* Game Controls (hide during celebration/question) */}
+            {!showGoalCelebration && !showQuestion && (
+                <GameControls
+                    onShoot={handleShoot}
+                    onAimChange={handleAimChange}
                 />
             )}
         </div>

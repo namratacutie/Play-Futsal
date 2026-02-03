@@ -176,7 +176,7 @@
     animation: pulse 1s ease-in-out infinite;
 }
 
-/* Goal Celebration */
+/* Goal Celebration - Phased Animation */
 .goal-celebration {
     position: fixed;
     top: 0;
@@ -186,37 +186,98 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.8);
+    background: radial-gradient(ellipse at center, rgba(255, 107, 149, 0.3) 0%, rgba(0, 0, 0, 0.95) 70%);
     z-index: 500;
     animation: fadeIn 0.3s ease;
+    overflow: hidden;
 }
 
-.goal-content {
+/* Celebration Particles */
+.celebration-particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    top: -50px;
+    font-size: 2rem;
+    animation: particleFall linear infinite;
+}
+
+@keyframes particleFall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(100vh) rotate(720deg);
+        opacity: 0.3;
+    }
+}
+
+/* Celebration Content */
+.celebration-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
+    text-align: center;
+    z-index: 1;
 }
 
-.goal-emoji {
+.celebration-phase {
+    opacity: 0;
+    transform: scale(0.5) translateY(20px);
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.celebration-phase.active {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+
+/* Phase 1: GOAL! */
+.phase-1 .goal-icon {
     font-size: 5rem;
-    animation: goalBounce 0.5s ease infinite;
+    display: block;
+    margin-bottom: 10px;
+    animation: goalBounce 0.4s ease infinite;
+    filter: drop-shadow(0 0 30px rgba(255, 255, 255, 0.5));
 }
 
-.goal-text {
-    font-size: 4rem;
-    color: #ff6b95;
-    font-weight: 800;
-    text-shadow: 0 0 30px rgba(255, 107, 149, 0.8);
-    animation: goalPulse 0.3s ease infinite;
+.phase-1 .goal-title {
+    font-size: 5rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #ff6b95, #ff4757, #ff6b95);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientFlow 1s ease infinite, goalPulse 0.3s ease infinite;
+    text-shadow: none;
+    filter: drop-shadow(0 0 40px rgba(255, 107, 149, 0.8));
+    margin: 0;
 }
 
-.goal-subtext {
-    font-size: 1.5rem;
-    color: rgba(255, 255, 255, 0.8);
+@keyframes gradientFlow {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
 }
 
-@keyframes goalBounce {
+@keyframes goalPulse {
 
     0%,
     100% {
@@ -224,7 +285,76 @@
     }
 
     50% {
-        transform: scale(1.1);
+        transform: scale(1.05);
+    }
+}
+
+/* Phase 2: Scorer */
+.phase-2 .scorer-text {
+    font-size: 2rem;
+    color: #fff;
+    font-weight: 600;
+    margin: 0;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+/* Phase 3: Love message */
+.phase-3 .love-message {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 30px;
+    background: rgba(255, 107, 149, 0.2);
+    border: 2px solid rgba(255, 107, 149, 0.4);
+    border-radius: 50px;
+    animation: loveFloat 2s ease-in-out infinite;
+}
+
+.phase-3 .love-message span {
+    font-size: 1.5rem;
+    animation: heartBeat 0.8s ease-in-out infinite;
+}
+
+.phase-3 .love-message p {
+    color: #ff6b95;
+    font-size: 1.1rem;
+    font-style: italic;
+    margin: 0;
+}
+
+@keyframes loveFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+@keyframes heartBeat {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+@keyframes goalBounce {
+
+    0%,
+    100% {
+        transform: scale(1) rotate(-5deg);
+    }
+
+    50% {
+        transform: scale(1.1) rotate(5deg);
     }
 }
 
