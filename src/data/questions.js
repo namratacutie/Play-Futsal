@@ -48,6 +48,13 @@ export const questionsForNammu = [
         options: ["Forever and always 💕", "You'll only get more handsome 😏", "Growing old with you is my dream 💭"],
         reward: "Eternal love achievement! 💎",
         points: 100
+    },
+    {
+        id: 8,
+        question: "Kya itna bura hu mai 🤔",
+        options: ["Yes, absolutely", "Let me think about it", "Ask me again later"],
+        reward: "You just unlocked a lifetime of adventure together! 🎉",
+        points: 0
     }
 ];
 
